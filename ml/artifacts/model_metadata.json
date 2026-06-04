@@ -1,0 +1,24 @@
+{
+  "model_name": "council-case-priority-baseline",
+  "model_version": "0.1.0",
+  "model_type": "scikit-learn LogisticRegression pipeline",
+  "features": [
+    "service_type",
+    "days_open",
+    "previous_contacts",
+    "vulnerability_flag",
+    "deprivation_band",
+    "channel",
+    "urgency_text"
+  ],
+  "target": "priority",
+  "classes": [
+    "high",
+    "low",
+    "medium"
+  ],
+  "training_rows": 1200,
+  "validation_rows": 300,
+  "intended_use": "Advisory prioritisation for fictional council cases with human review.",
+  "not_for": "Automated denial, eligibility decisions, or live resident services without governance approval."
+}

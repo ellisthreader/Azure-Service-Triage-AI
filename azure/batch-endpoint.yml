@@ -1,0 +1,8 @@
+$schema: https://azuremlschemas.azureedge.net/latest/batchEndpoint.schema.json
+name: be-service-priority-ai
+description: Offline Service Priority AI scoring for scheduled review queues.
+auth_mode: aad_token
+tags:
+  project: service-priority-ai
+  workload: batch-scoring
+  data: synthetic

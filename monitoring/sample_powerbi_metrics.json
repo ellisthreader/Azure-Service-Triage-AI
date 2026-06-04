@@ -1,0 +1,26 @@
+{
+  "dataset": "azure_council_case_prioritisation",
+  "refresh_cadence": "daily",
+  "metrics": [
+    {
+      "name": "total_predictions",
+      "description": "Number of prediction requests received by the API."
+    },
+    {
+      "name": "high_priority_rate",
+      "description": "Share of cases predicted as high priority."
+    },
+    {
+      "name": "average_confidence",
+      "description": "Mean model confidence across predictions."
+    },
+    {
+      "name": "low_confidence_rate",
+      "description": "Share of predictions below the agreed confidence threshold."
+    },
+    {
+      "name": "fairness_gap_vulnerability",
+      "description": "Difference in high-priority rate between vulnerability groups for review."
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+$schema: https://azuremlschemas.azureedge.net/latest/managedOnlineEndpoint.schema.json
+name: ep-service-priority-ai
+auth_mode: aad_token
+description: Real-time Service Priority AI recommendations for human-reviewed triage.
+tags:
+  project: service-priority-ai
+  data: synthetic
+  human_review_required: "true"
+  owner_review: required_before_production

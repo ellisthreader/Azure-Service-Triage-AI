@@ -1,0 +1,9 @@
+{
+  "service_type": "housing",
+  "days_open": 5,
+  "previous_contacts": 3,
+  "vulnerability_flag": true,
+  "deprivation_band": "high",
+  "channel": "phone",
+  "urgency_text": "Customer has no heating and there are young children in the property"
+}

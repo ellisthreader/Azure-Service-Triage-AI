@@ -1,0 +1,4 @@
+case_id,service_type,days_open,previous_contacts,vulnerability_flag,deprivation_band,channel,urgency_text
+DEMO-001,housing,5,3,true,high,phone,Customer has no heating and there are young children in the property
+DEMO-002,waste,2,0,false,medium,web,Missed collection reported through online form
+DEMO-003,adult_social_care,12,5,true,high,phone,Safeguarding concern raised by family member

@@ -1,0 +1,155 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate starter project
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install validation tools
+        run: python -m pip install --upgrade pip pyyaml
+
+      - name: Validate YAML syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+          import yaml
+
+          paths = [
+              Path("azure/ml-pipeline.yml"),
+              Path(".github/workflows/ci.yml"),
+          ]
+
+          for path in paths:
+              if not path.exists():
+                  print(f"Missing required YAML file: {path}", file=sys.stderr)
+                  sys.exit(1)
+              with path.open("r", encoding="utf-8") as handle:
+                  yaml.safe_load(handle)
+              print(f"YAML OK: {path}")
+          PY
+
+      - name: Check Azure MLOps documentation coverage
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+
+          checks = {
+              "azure/README.md": [
+                  "Training Pipeline",
+                  "Model Registry",
+                  "Managed Online Endpoint",
+                  "Batch Scoring",
+                  "Secrets and Identity",
+                  "Monitoring and Responsible AI",
+                  "CI Checks",
+              ],
+              "azure/endpoint-deployment.md": [
+                  "Online Endpoint Contract",
+                  "Managed Online Endpoint YAML Shape",
+                  "Safe Rollout",
+                  "Batch Scoring Deployment Shape",
+                  "Security Notes",
+                  "Operational Monitoring",
+              ],
+          }
+
+          missing = []
+          for file_name, required_terms in checks.items():
+              text = Path(file_name).read_text(encoding="utf-8")
+              for term in required_terms:
+                  if term not in text:
+                      missing.append(f"{file_name}: {term}")
+
+          if missing:
+              print("Missing required documentation topics:", file=sys.stderr)
+              for item in missing:
+                  print(f"- {item}", file=sys.stderr)
+              sys.exit(1)
+
+          print("Azure MLOps documentation coverage OK")
+          PY
+
+      - name: Check pipeline starter contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+          import yaml
+
+          pipeline = yaml.safe_load(Path("azure/ml-pipeline.yml").read_text(encoding="utf-8"))
+          expected_jobs = {
+              "generate_synthetic_data",
+              "train_model",
+              "evaluate_model",
+              "prepare_registry_candidate",
+          }
+
+          actual_jobs = set((pipeline.get("jobs") or {}).keys())
+          missing_jobs = expected_jobs - actual_jobs
+          if missing_jobs:
+              print(f"Pipeline missing jobs: {sorted(missing_jobs)}", file=sys.stderr)
+              sys.exit(1)
+
+          if pipeline.get("type") != "pipeline":
+              print("azure/ml-pipeline.yml must be an Azure ML pipeline job", file=sys.stderr)
+              sys.exit(1)
+
+          commands = "\n".join(
+              job.get("command", "")
+              for job in (pipeline.get("jobs") or {}).values()
+              if isinstance(job, dict)
+          )
+          expected_scripts = ["generate_data.py", "train_model.py"]
+          missing_scripts = [script for script in expected_scripts if script not in commands]
+          if missing_scripts:
+              print(f"Pipeline no longer references expected scripts: {missing_scripts}", file=sys.stderr)
+              sys.exit(1)
+
+          print("Azure ML pipeline starter contract OK")
+          PY
+
+      - name: Optional Python syntax check
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import py_compile
+
+          roots = [Path("backend"), Path("ml")]
+          files = [path for root in roots if root.exists() for path in root.rglob("*.py")]
+
+          if not files:
+              print("No Python files found yet; skipping syntax check.")
+          for path in files:
+              py_compile.compile(str(path), doraise=True)
+              print(f"Python syntax OK: {path}")
+          PY
+
+      - name: Optional pytest
+        run: |
+          if find . -path './.git' -prune -o -name 'test_*.py' -print -quit | grep -q .; then
+            python -m pip install pytest
+            python -m pytest
+          else
+            echo "No pytest tests found yet; skipping."
+          fi

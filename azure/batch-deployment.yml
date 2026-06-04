@@ -1,0 +1,22 @@
+$schema: https://azuremlschemas.azureedge.net/latest/modelBatchDeployment.schema.json
+name: default
+endpoint_name: be-service-priority-ai
+model: azureml:service-priority-ai:1
+code_configuration:
+  code: ..
+  scoring_script: ml/batch_score.py
+environment: azureml:service-priority-batch:1
+compute: azureml:cpu-cluster
+resources:
+  instance_count: 1
+max_concurrency_per_instance: 2
+mini_batch_size: 100
+output_action: append_row
+retry_settings:
+  max_retries: 3
+  timeout: 300
+logging_level: info
+tags:
+  project: service-priority-ai
+  workload: batch-scoring
+  data: synthetic
