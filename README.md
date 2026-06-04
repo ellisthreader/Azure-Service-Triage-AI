@@ -1,16 +1,26 @@
 # Service Priority AI
 
-Portfolio project for an AI / ML Engineer role focused on Azure MLOps, Responsible AI, and public-sector machine learning delivery.
+An end-to-end Azure MLOps and Responsible AI portfolio project for service request triage.
 
-The system predicts a fictional service request priority of `low`, `medium`, or `high`. It is designed as a human decision-support tool: the model recommends a priority, explains the main factors, and exposes monitoring signals that help decide whether the model is still safe to use.
+Service Priority AI demonstrates how a machine learning system can be designed, delivered, governed, and monitored in a realistic public-sector decision-support workflow. The project predicts a fictional service request priority of `low`, `medium`, or `high`, then presents the recommendation with confidence scores, explanation factors, and operational monitoring signals so a human reviewer can make the final decision.
 
-## Why This Project Fits the Role
+This repository is built to show employer-ready engineering judgement, not just model training. It combines a tested FastAPI prediction service, a React triage dashboard, synthetic data generation, scikit-learn model training, Azure Machine Learning deployment assets, CI validation, monitoring contracts, and Responsible AI documentation covering model cards, DPIA-lite thinking, fairness, drift, human oversight, and safe-use boundaries.
 
-- Demonstrates end-to-end ML delivery rather than notebook-only modelling.
-- Uses production-style Python, FastAPI, testing, and API contracts.
-- Includes monitoring for performance, drift, fairness, and operational health.
-- Includes Responsible AI, DPIA-lite, model card, and human oversight documentation.
-- Provides an Azure-ready structure for Azure Machine Learning pipelines, registries, managed endpoints, and batch scoring.
+## Portfolio Highlights
+
+- End-to-end ML delivery: data generation, training, evaluation artifacts, API serving, frontend consumption, monitoring, and deployment documentation.
+- Azure-ready MLOps structure: pipeline, environment, endpoint, batch scoring, and deployment YAML assets designed for Azure Machine Learning CLI v2.
+- Responsible AI by design: human-in-the-loop positioning, model card, DPIA-lite assessment, fairness and drift monitoring concepts, and explicit limitations for synthetic demo data.
+- Production-style implementation: typed API schemas, FastAPI tests, CI workflow, package-managed frontend, and clearly documented integration contracts.
+- Employer-relevant scenario: a practical triage workflow that reflects the governance, reliability, auditability, and communication skills expected in applied AI roles.
+
+## Technical Scope
+
+- **Machine learning:** synthetic case data, feature contract, scikit-learn training pipeline, persisted model artifact, evaluation metrics, and model metadata.
+- **Backend:** FastAPI service with typed request/response schemas, health checks, prediction endpoint, monitoring summary endpoint, and automated API tests.
+- **Frontend:** React triage dashboard for reviewing recommendations, confidence, explanation factors, and service-level monitoring signals.
+- **MLOps:** Azure ML pipeline, environment, online endpoint, batch endpoint, deployment notes, CI validation, and reproducible local commands.
+- **Governance:** Responsible AI assessment, DPIA-lite, model card, monitoring strategy, acceptance criteria, and clear human accountability boundaries.
 
 ## Project Structure
 
