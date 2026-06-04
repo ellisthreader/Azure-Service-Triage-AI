@@ -22,6 +22,22 @@ This repository is built to show employer-ready engineering judgement, not just 
 - **MLOps:** Azure ML pipeline, environment, online endpoint, batch endpoint, deployment notes, CI validation, and reproducible local commands.
 - **Governance:** Responsible AI assessment, DPIA-lite, model card, monitoring strategy, acceptance criteria, and clear human accountability boundaries.
 
+## Dashboard Screenshots
+
+These screenshots show real responses from the running FastAPI model service, captured through the React dashboard with different case profiles.
+
+### High Priority
+
+![High priority triage dashboard](docs/screenshots/high-priority-triage.png)
+
+### Medium Priority
+
+![Medium priority triage dashboard](docs/screenshots/medium-priority-triage.png)
+
+### Low Priority
+
+![Low priority triage dashboard](docs/screenshots/low-priority-triage.png)
+
 ## Project Structure
 
 ```text
