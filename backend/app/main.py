@@ -25,6 +25,17 @@ app.add_middleware(
 model_service = ModelService()
 
 
+@app.get("/", tags=["status"])
+def root() -> dict[str, object]:
+    return {
+        "service": "Service Priority AI API",
+        "status": "ok",
+        "health": "/health",
+        "docs": "/docs",
+        "predict": "POST /predict",
+    }
+
+
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(
