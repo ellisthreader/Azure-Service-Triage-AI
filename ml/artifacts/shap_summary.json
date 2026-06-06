@@ -1,0 +1,139 @@
+{
+  "model_name": "service-priority-ai-baseline",
+  "model_version": "0.1.0",
+  "explanation_method": "SHAP LinearExplainer over the transformed scikit-learn pipeline features",
+  "sample_rows": 120,
+  "classes": [
+    "high",
+    "low",
+    "medium"
+  ],
+  "top_features_by_class": {
+    "high": [
+      {
+        "feature": "previous contacts",
+        "mean_absolute_shap": 1.002909
+      },
+      {
+        "feature": "days open",
+        "mean_absolute_shap": 0.839001
+      },
+      {
+        "feature": "vulnerability flag True",
+        "mean_absolute_shap": 0.820639
+      },
+      {
+        "feature": "vulnerability flag False",
+        "mean_absolute_shap": 0.819635
+      },
+      {
+        "feature": "service type children services",
+        "mean_absolute_shap": 0.75642
+      },
+      {
+        "feature": "channel web",
+        "mean_absolute_shap": 0.476766
+      },
+      {
+        "feature": "service type adult social care",
+        "mean_absolute_shap": 0.431607
+      },
+      {
+        "feature": "deprivation band high",
+        "mean_absolute_shap": 0.372782
+      },
+      {
+        "feature": "service type waste",
+        "mean_absolute_shap": 0.294295
+      },
+      {
+        "feature": "channel phone",
+        "mean_absolute_shap": 0.250627
+      }
+    ],
+    "low": [
+      {
+        "feature": "previous contacts",
+        "mean_absolute_shap": 1.011445
+      },
+      {
+        "feature": "days open",
+        "mean_absolute_shap": 0.835607
+      },
+      {
+        "feature": "vulnerability flag True",
+        "mean_absolute_shap": 0.828387
+      },
+      {
+        "feature": "vulnerability flag False",
+        "mean_absolute_shap": 0.826805
+      },
+      {
+        "feature": "service type children services",
+        "mean_absolute_shap": 0.813823
+      },
+      {
+        "feature": "channel web",
+        "mean_absolute_shap": 0.484281
+      },
+      {
+        "feature": "service type adult social care",
+        "mean_absolute_shap": 0.412243
+      },
+      {
+        "feature": "deprivation band high",
+        "mean_absolute_shap": 0.404237
+      },
+      {
+        "feature": "channel phone",
+        "mean_absolute_shap": 0.355624
+      },
+      {
+        "feature": "deprivation band medium",
+        "mean_absolute_shap": 0.300968
+      }
+    ],
+    "medium": [
+      {
+        "feature": "channel phone",
+        "mean_absolute_shap": 0.104997
+      },
+      {
+        "feature": "deprivation band medium",
+        "mean_absolute_shap": 0.066651
+      },
+      {
+        "feature": "service type children services",
+        "mean_absolute_shap": 0.057402
+      },
+      {
+        "feature": "deprivation band high",
+        "mean_absolute_shap": 0.031455
+      },
+      {
+        "feature": "deprivation band low",
+        "mean_absolute_shap": 0.022388
+      },
+      {
+        "feature": "service type adult social care",
+        "mean_absolute_shap": 0.019364
+      },
+      {
+        "feature": "service type council tax",
+        "mean_absolute_shap": 0.018937
+      },
+      {
+        "feature": "channel in person",
+        "mean_absolute_shap": 0.018545
+      },
+      {
+        "feature": "previous contacts",
+        "mean_absolute_shap": 0.008536
+      },
+      {
+        "feature": "vulnerability flag True",
+        "mean_absolute_shap": 0.007747
+      }
+    ]
+  }
+}

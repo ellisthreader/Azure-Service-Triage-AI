@@ -1,0 +1,8 @@
+metric,value
+accuracy,0.9033
+macro_f1,0.9045
+high_priority_recall,0.9661
+high_priority_recall_floor,0.75
+high_priority_recall_gate,pass
+human_review_required,True
+data,synthetic

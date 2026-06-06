@@ -1,5 +1,7 @@
 {
   "accuracy": 0.9033,
+  "macro_f1": 0.9045,
+  "high_priority_recall": 0.9661,
   "classification_report": {
     "high": {
       "precision": 0.890625,
@@ -55,5 +57,73 @@
     "low",
     "medium"
   ],
-  "validation_rows": 300
+  "validation_rows": 300,
+  "fairness_slices": {
+    "vulnerability_flag": {
+      "False": {
+        "rows": 227,
+        "high_priority_rate": 0.0529,
+        "accuracy": 0.9119
+      },
+      "True": {
+        "rows": 73,
+        "high_priority_rate": 0.7123,
+        "accuracy": 0.8767
+      }
+    },
+    "deprivation_band": {
+      "high": {
+        "rows": 75,
+        "high_priority_rate": 0.2667,
+        "accuracy": 0.92
+      },
+      "low": {
+        "rows": 99,
+        "high_priority_rate": 0.202,
+        "accuracy": 0.9091
+      },
+      "medium": {
+        "rows": 126,
+        "high_priority_rate": 0.1905,
+        "accuracy": 0.8889
+      }
+    },
+    "service_type": {
+      "adult_social_care": {
+        "rows": 44,
+        "high_priority_rate": 0.3864,
+        "accuracy": 0.8864
+      },
+      "benefits": {
+        "rows": 43,
+        "high_priority_rate": 0.186,
+        "accuracy": 0.9302
+      },
+      "children_services": {
+        "rows": 55,
+        "high_priority_rate": 0.2,
+        "accuracy": 0.8909
+      },
+      "council_tax": {
+        "rows": 40,
+        "high_priority_rate": 0.175,
+        "accuracy": 1.0
+      },
+      "highways": {
+        "rows": 44,
+        "high_priority_rate": 0.1364,
+        "accuracy": 0.7955
+      },
+      "housing": {
+        "rows": 38,
+        "high_priority_rate": 0.2632,
+        "accuracy": 0.8684
+      },
+      "waste": {
+        "rows": 36,
+        "high_priority_rate": 0.1389,
+        "accuracy": 0.9722
+      }
+    }
+  }
 }

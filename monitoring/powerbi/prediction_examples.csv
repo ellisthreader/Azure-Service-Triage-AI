@@ -1,0 +1,51 @@
+case_id,service_type,days_open,previous_contacts,vulnerability_flag,deprivation_band,channel,urgency_text,priority,predicted_priority,confidence,human_review_required
+CASE-00001,council_tax,5,3,True,low,phone,repeat contact and resident is frustrated,medium,medium,0.5458,True
+CASE-00002,adult_social_care,7,0,False,low,phone,missed appointment causing inconvenience,medium,medium,0.6704,False
+CASE-00003,highways,7,0,False,low,web,unsafe road defect near school entrance,medium,medium,0.5651,True
+CASE-00004,waste,0,4,True,medium,email,payment query needs resolution this week,medium,medium,0.8341,False
+CASE-00005,highways,8,2,False,medium,web,minor issue reported online,low,low,0.9361,False
+CASE-00006,children_services,0,0,True,low,phone,safeguarding concern raised by family member,high,high,0.9234,True
+CASE-00007,council_tax,3,2,False,medium,web,request for update when possible,low,low,0.9814,False
+CASE-00008,children_services,3,0,False,high,email,general enquiry about service times,low,low,0.6467,True
+CASE-00009,benefits,2,1,False,high,phone,request for update when possible,low,low,0.6825,False
+CASE-00010,benefits,1,2,False,high,web,request for update when possible,low,low,0.9134,False
+CASE-00011,housing,6,4,False,medium,phone,routine form completion question,medium,medium,0.8383,False
+CASE-00012,benefits,6,0,False,medium,phone,repair delay affecting daily routine,low,low,0.9565,False
+CASE-00013,highways,0,1,True,high,web,no heating and vulnerable resident affected,high,high,0.7703,True
+CASE-00014,highways,7,2,False,low,web,general enquiry about service times,low,low,0.9442,False
+CASE-00015,waste,10,5,True,low,web,no heating and vulnerable resident affected,high,high,0.9953,True
+CASE-00016,children_services,0,3,True,high,web,repair delay affecting daily routine,high,high,0.9036,True
+CASE-00017,benefits,0,1,False,low,web,unsafe road defect near school entrance,low,low,0.7525,False
+CASE-00018,benefits,3,1,False,low,web,missed appointment causing inconvenience,low,low,0.9894,False
+CASE-00019,adult_social_care,2,0,True,low,phone,payment query needs resolution this week,medium,medium,0.7797,False
+CASE-00020,waste,9,0,False,low,web,routine form completion question,low,low,0.9774,False
+CASE-00021,housing,8,6,False,low,email,request for update when possible,medium,medium,0.8566,False
+CASE-00022,adult_social_care,7,1,False,low,email,general enquiry about service times,low,low,0.7148,False
+CASE-00023,housing,7,4,False,low,web,routine form completion question,medium,medium,0.592,True
+CASE-00024,highways,8,3,False,low,phone,payment query needs resolution this week,medium,medium,0.7153,False
+CASE-00025,highways,4,0,True,low,web,missed appointment causing inconvenience,low,medium,0.5489,True
+CASE-00026,children_services,3,2,True,medium,web,request for update when possible,medium,medium,0.5626,True
+CASE-00027,housing,0,1,False,high,web,missed appointment causing inconvenience,low,low,0.8924,False
+CASE-00028,adult_social_care,2,1,False,low,email,routine form completion question,low,low,0.8721,False
+CASE-00029,benefits,5,0,False,high,email,unsafe road defect near school entrance,medium,medium,0.7459,False
+CASE-00030,waste,8,3,False,medium,in_person,repeat contact and resident is frustrated,medium,low,0.585,True
+CASE-00031,benefits,6,3,False,low,web,repair delay affecting daily routine,low,low,0.9245,False
+CASE-00032,adult_social_care,4,1,False,medium,web,repeat contact and resident is frustrated,low,low,0.8759,False
+CASE-00033,waste,3,0,False,high,web,routine form completion question,low,low,0.9766,False
+CASE-00034,housing,6,4,True,high,phone,safeguarding concern raised by family member,high,high,0.9993,True
+CASE-00035,housing,7,4,False,high,web,general enquiry about service times,medium,medium,0.7855,False
+CASE-00036,benefits,0,1,False,medium,web,safeguarding concern raised by family member,low,low,0.704,False
+CASE-00037,children_services,8,1,True,high,web,missed appointment causing inconvenience,high,high,0.8139,True
+CASE-00038,children_services,13,1,False,low,phone,routine form completion question,medium,medium,0.8773,False
+CASE-00039,children_services,7,1,False,low,email,unsafe road defect near school entrance,medium,medium,0.5751,True
+CASE-00040,benefits,5,6,False,medium,email,minor issue reported online,low,low,0.6065,True
+CASE-00041,highways,1,2,True,medium,in_person,request for update when possible,medium,medium,0.7275,False
+CASE-00042,council_tax,10,2,False,high,phone,safeguarding concern raised by family member,high,high,0.652,True
+CASE-00043,housing,0,5,False,low,email,payment query needs resolution this week,low,low,0.5816,True
+CASE-00044,council_tax,0,0,False,medium,email,missed appointment causing inconvenience,low,low,0.9985,False
+CASE-00045,highways,4,4,False,high,phone,routine form completion question,medium,medium,0.8671,False
+CASE-00046,adult_social_care,7,3,False,high,phone,repair delay affecting daily routine,high,high,0.6836,True
+CASE-00047,council_tax,7,0,False,low,email,general enquiry about service times,low,low,0.9918,False
+CASE-00048,waste,4,3,False,medium,email,payment query needs resolution this week,low,low,0.9339,False
+CASE-00049,adult_social_care,11,3,True,high,email,routine form completion question,high,high,0.9849,True
+CASE-00050,children_services,0,0,True,medium,phone,risk of homelessness within days,high,high,0.9479,True

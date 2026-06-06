@@ -1,5 +1,5 @@
 {
-  "model_name": "council-case-priority-baseline",
+  "model_name": "service-priority-ai-baseline",
   "model_version": "0.1.0",
   "model_type": "scikit-learn LogisticRegression pipeline",
   "features": [
@@ -19,6 +19,6 @@
   ],
   "training_rows": 1200,
   "validation_rows": 300,
-  "intended_use": "Advisory prioritisation for fictional council cases with human review.",
-  "not_for": "Automated denial, eligibility decisions, or live resident services without governance approval."
+  "intended_use": "Advisory prioritisation for fictional service requests with human review.",
+  "not_for": "Automated denial, eligibility decisions, or live services without governance approval."
 }

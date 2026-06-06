@@ -1,0 +1,31 @@
+class,rank,feature,mean_absolute_shap
+high,1,previous contacts,1.002909
+high,2,days open,0.839001
+high,3,vulnerability flag True,0.820639
+high,4,vulnerability flag False,0.819635
+high,5,service type children services,0.75642
+high,6,channel web,0.476766
+high,7,service type adult social care,0.431607
+high,8,deprivation band high,0.372782
+high,9,service type waste,0.294295
+high,10,channel phone,0.250627
+low,1,previous contacts,1.011445
+low,2,days open,0.835607
+low,3,vulnerability flag True,0.828387
+low,4,vulnerability flag False,0.826805
+low,5,service type children services,0.813823
+low,6,channel web,0.484281
+low,7,service type adult social care,0.412243
+low,8,deprivation band high,0.404237
+low,9,channel phone,0.355624
+low,10,deprivation band medium,0.300968
+medium,1,channel phone,0.104997
+medium,2,deprivation band medium,0.066651
+medium,3,service type children services,0.057402
+medium,4,deprivation band high,0.031455
+medium,5,deprivation band low,0.022388
+medium,6,service type adult social care,0.019364
+medium,7,service type council tax,0.018937
+medium,8,channel in person,0.018545
+medium,9,previous contacts,0.008536
+medium,10,vulnerability flag True,0.007747

@@ -34,11 +34,18 @@ class Reason(BaseModel):
     impact: str
 
 
+class FeatureAttribution(BaseModel):
+    feature: str
+    value: float
+    direction: Literal["raises_priority", "lowers_priority"]
+
+
 class PredictionResponse(BaseModel):
     priority: Priority
     confidence: float
     class_probabilities: dict[str, float]
     main_reasons: list[Reason]
+    feature_attributions: list[FeatureAttribution] = []
     model_version: str
     human_review_required: bool
 
@@ -56,3 +63,26 @@ class MetricsSummary(BaseModel):
     fairness_watch: dict[str, float | str]
     drift_watch: dict[str, float | str]
     operational_health: dict[str, float | int | str]
+
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class Citation(BaseModel):
+    label: str
+    source: str
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+    history: list[ChatMessage] = []
+    case_context: CaseRequest | None = None
+
+
+class ChatResponse(BaseModel):
+    reply: str
+    suggestions: list[str] = []
+    prediction: PredictionResponse | None = None
+    citations: list[Citation] = []

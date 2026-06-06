@@ -1,0 +1,9 @@
+{
+  "project": "service-priority-ai",
+  "data": "synthetic",
+  "model_framework": "scikit-learn",
+  "model_format": "joblib",
+  "human_review_required": "true",
+  "high_priority_recall_gate": "pass",
+  "responsible_ai_review": "pending"
+}

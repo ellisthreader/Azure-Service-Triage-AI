@@ -1,0 +1,12 @@
+{
+  "model_name": "service-priority-ai-baseline",
+  "model_version": "0.1.0",
+  "accuracy": 0.9033,
+  "macro_f1": 0.9045,
+  "high_priority_recall": 0.9661,
+  "high_priority_recall_floor": 0.75,
+  "high_priority_recall_gate": "pass",
+  "fairness_status": "review_required",
+  "human_review_required": true,
+  "data": "synthetic"
+}

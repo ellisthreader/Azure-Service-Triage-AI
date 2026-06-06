@@ -1,0 +1,6 @@
+metric,value,alert_status
+endpoint_status,healthy,green
+model_version,0.1.0,green
+drift_watch,configured,amber
+fairness_review,required,amber
+responsible_ai_scorecard,inputs_prepared,amber

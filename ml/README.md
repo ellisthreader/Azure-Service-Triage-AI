@@ -1,6 +1,6 @@
 # ML Layer
 
-This folder defines the synthetic council case-prioritisation dataset, the
+This folder defines the synthetic service request prioritisation dataset, the
 baseline training approach, and the model artifacts expected by the backend API.
 The project is a local, Azure-ready demonstration. It does not use real council
 records or automate service decisions.

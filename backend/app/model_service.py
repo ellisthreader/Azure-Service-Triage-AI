@@ -5,9 +5,10 @@ from pathlib import Path
 from typing import Any
 
 import joblib
+import numpy as np
 import pandas as pd
 
-from .schemas import CaseRequest, Reason
+from .schemas import CaseRequest, FeatureAttribution, Reason
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -19,6 +20,7 @@ class ModelService:
     def __init__(self) -> None:
         self.model: Any | None = None
         self.metadata: dict[str, Any] = {}
+        self.feature_names: list[str] = []
         self.load()
 
     def load(self) -> None:
@@ -26,6 +28,7 @@ class ModelService:
             artifact = joblib.load(MODEL_PATH)
             self.model = artifact["model"]
             self.metadata = artifact.get("metadata", {})
+            self.feature_names = self._feature_names()
         elif METADATA_PATH.exists():
             self.metadata = json.loads(METADATA_PATH.read_text(encoding="utf-8"))
 
@@ -55,9 +58,60 @@ class ModelService:
             "confidence": confidence,
             "class_probabilities": class_probabilities,
             "main_reasons": self.explain(payload),
+            "feature_attributions": self.feature_attributions(row, priority),
             "model_version": self.version or "untrained",
             "human_review_required": priority == "high" or confidence < 0.65,
         }
+
+    def feature_attributions(self, row: pd.DataFrame, priority: str) -> list[FeatureAttribution]:
+        if self.model is None:
+            return []
+
+        try:
+            preprocess = self.model.named_steps["preprocess"]
+            classifier = self.model.named_steps["classifier"]
+            transformed = preprocess.transform(row)
+            values = transformed.toarray()[0] if hasattr(transformed, "toarray") else np.asarray(transformed)[0]
+            class_index = list(classifier.classes_).index(priority)
+            coefficients = classifier.coef_[class_index]
+            contributions = values * coefficients
+            names = self.feature_names or [f"feature_{index}" for index in range(len(contributions))]
+        except Exception:
+            return []
+
+        ranked = sorted(
+            zip(names, contributions, strict=False),
+            key=lambda item: abs(float(item[1])),
+            reverse=True,
+        )
+
+        attributions = []
+        for feature, contribution in ranked[:5]:
+            value = round(float(contribution), 4)
+            if value == 0:
+                continue
+            attributions.append(
+                FeatureAttribution(
+                    feature=self._friendly_feature_name(feature),
+                    value=value,
+                    direction="raises_priority" if value > 0 else "lowers_priority",
+                )
+            )
+        return attributions
+
+    def _feature_names(self) -> list[str]:
+        if self.model is None:
+            return []
+        try:
+            return [str(name) for name in self.model.named_steps["preprocess"].get_feature_names_out()]
+        except Exception:
+            return []
+
+    def _friendly_feature_name(self, raw_name: str) -> str:
+        name = raw_name
+        for prefix in ["categorical__", "numeric__", "text__"]:
+            name = name.replace(prefix, "")
+        return name.replace("_", " ")
 
     def explain(self, payload: CaseRequest) -> list[Reason]:
         reasons: list[Reason] = []
@@ -109,6 +163,7 @@ class ModelService:
             "confidence": probabilities[priority],
             "class_probabilities": probabilities,
             "main_reasons": self.explain(payload),
+            "feature_attributions": [],
             "model_version": "rules-fallback",
             "human_review_required": priority == "high",
         }

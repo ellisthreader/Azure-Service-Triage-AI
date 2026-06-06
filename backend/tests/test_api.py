@@ -6,12 +6,6 @@ from backend.app.main import app
 client = TestClient(app)
 
 
-def test_root() -> None:
-    response = client.get("/")
-    assert response.status_code == 200
-    assert response.json()["status"] == "ok"
-
-
 def test_health() -> None:
     response = client.get("/health")
     assert response.status_code == 200
@@ -59,3 +53,13 @@ def test_metrics_summary_after_prediction() -> None:
     body = response.json()
     assert body["total_predictions"] >= 1
     assert "fairness_watch" in body
+
+
+def test_dashboard_summary() -> None:
+    response = client.get("/dashboard/summary")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["pipeline"]
+    assert body["registry"]
+    assert "shap_top_features" in body

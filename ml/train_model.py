@@ -90,7 +90,7 @@ def main() -> None:
     }
 
     metadata = {
-        "model_name": "council-case-priority-baseline",
+        "model_name": "service-priority-ai-baseline",
         "model_version": "0.1.0",
         "model_type": "scikit-learn LogisticRegression pipeline",
         "features": FEATURES,
@@ -98,8 +98,8 @@ def main() -> None:
         "classes": list(model.classes_),
         "training_rows": int(len(X_train)),
         "validation_rows": int(len(X_test)),
-        "intended_use": "Advisory prioritisation for fictional council cases with human review.",
-        "not_for": "Automated denial, eligibility decisions, or live resident services without governance approval.",
+        "intended_use": "Advisory prioritisation for fictional service requests with human review.",
+        "not_for": "Automated denial, eligibility decisions, or live services without governance approval.",
     }
 
     joblib.dump({"model": model, "metadata": metadata}, MODEL_PATH)

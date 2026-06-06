@@ -1,0 +1,8 @@
+table,field,description
+model_summary,metric,Model performance or governance metric name.
+model_summary,value,Metric value.
+fairness_slices,slice_feature,Cohort feature used for fairness review.
+fairness_slices,high_priority_rate,Share of requests predicted as high priority.
+prediction_examples,confidence,Model confidence for predicted priority.
+shap_feature_importance,mean_absolute_shap,Average absolute SHAP impact by class.
+operational_metrics,alert_status,Demo alert status for monitoring dashboard.
