@@ -1,10 +1,6 @@
 {
   "navigationFallback": {
-    "rewrite": "/index.html"
-  },
-  "responseOverrides": {
-    "404": {
-      "rewrite": "/index.html"
-    }
+    "rewrite": "/index.html",
+    "exclude": ["/index-*.js", "/index-*.css", "/essex-brand/*", "/essex-home/*", "/m365-icons/*"]
   }
 }
