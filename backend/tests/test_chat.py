@@ -31,12 +31,13 @@ def test_chat_triage_returns_prediction() -> None:
             "message": "triage this case for me",
             "case_context": {
                 "service_type": "housing",
-                "days_open": 8,
-                "previous_contacts": 4,
+                "service_subtype": "fire_risk",
+                "days_open": 5,
+                "previous_contacts": 1,
                 "vulnerability_flag": True,
                 "deprivation_band": "high",
                 "channel": "phone",
-                "urgency_text": "No heating and vulnerable resident affected",
+                "urgency_text": "Fire risk and also children in house",
             },
         },
     )

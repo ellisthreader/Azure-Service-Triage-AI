@@ -12,6 +12,14 @@ import pandas as pd
 
 FEATURES = [
     "service_type",
+    "service_subtype",
+    "district",
+    "month",
+    "source_system",
+    "sla_hours",
+    "out_of_hours",
+    "accessibility_need",
+    "duplicate_signal",
     "days_open",
     "previous_contacts",
     "vulnerability_flag",
@@ -19,6 +27,17 @@ FEATURES = [
     "channel",
     "urgency_text",
 ]
+
+DEFAULTS = {
+    "service_subtype": "routine_repair_update",
+    "district": "Chelmsford",
+    "month": 1,
+    "source_system": "web_form",
+    "sla_hours": 168,
+    "out_of_hours": False,
+    "accessibility_need": False,
+    "duplicate_signal": False,
+}
 
 MODEL: Any | None = None
 METADATA: dict[str, Any] = {}
@@ -58,11 +77,14 @@ def score_frame(input_frame: pd.DataFrame) -> pd.DataFrame:
     if MODEL is None:
         raise RuntimeError("Model is not loaded.")
 
-    missing = [column for column in FEATURES if column not in input_frame.columns]
+    frame = input_frame.copy()
+    for column, value in DEFAULTS.items():
+        if column not in frame.columns:
+            frame[column] = value
+
+    missing = [column for column in FEATURES if column not in frame.columns]
     if missing:
         raise ValueError(f"Missing required fields: {missing}")
-
-    frame = input_frame.copy()
     predictions = MODEL.predict(frame[FEATURES])
     probabilities = MODEL.predict_proba(frame[FEATURES])
     classes = [str(label) for label in MODEL.classes_]

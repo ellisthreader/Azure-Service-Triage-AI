@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MessageSquare, Menu, ShieldCheck, X } from "lucide-react";
+import { MessageSquare, Menu, X } from "lucide-react";
 import type { Route } from "../router";
 import { NAV } from "../home/content";
 
@@ -17,11 +17,13 @@ export function TopNav({ route, online, onOpenChat }: Props) {
   return (
     <header className="topnav">
       <div className="topnav-inner">
-        <a className="brand" href="#/" aria-label="Service Priority AI — home">
-          <span className="brand-mark"><ShieldCheck size={18} /></span>
-          <span className="brand-name">
-            Service Priority<span className="brand-ai">AI</span>
-          </span>
+        <a className="brand" href="#/" aria-label="Essex County Council AI hub — home">
+          <img
+            className="brand-logo"
+            src="/essex-brand/ecc-logo-long-red.svg"
+            alt="Essex County Council"
+          />
+          <span className="brand-product">AI services hub</span>
         </a>
 
         <nav className="nav-links" aria-label="Primary">
@@ -38,9 +40,11 @@ export function TopNav({ route, online, onOpenChat }: Props) {
               <span className="dot-live" /> {online ? "API online" : "API offline"}
             </span>
           )}
-          <button className="btn-primary" onClick={onOpenChat}>
-            <MessageSquare size={15} /> Ask the assistant
-          </button>
+          {route === "home" && (
+            <button className="btn-primary" onClick={onOpenChat}>
+              <MessageSquare size={15} /> Ask the assistant
+            </button>
+          )}
           <button
             className="nav-burger"
             aria-label={menuOpen ? "Close menu" : "Open menu"}
@@ -64,15 +68,17 @@ export function TopNav({ route, online, onOpenChat }: Props) {
               {item.label}
             </a>
           ))}
-          <button
-            className="btn-primary"
-            onClick={() => {
-              setMenuOpen(false);
-              onOpenChat();
-            }}
-          >
-            <MessageSquare size={15} /> Ask the assistant
-          </button>
+          {route === "home" && (
+            <button
+              className="btn-primary"
+              onClick={() => {
+                setMenuOpen(false);
+                onOpenChat();
+              }}
+            >
+              <MessageSquare size={15} /> Ask the assistant
+            </button>
+          )}
         </nav>
       )}
     </header>

@@ -7,13 +7,17 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from .audit_store import AuditStore, make_audit_id, utc_now
 from .chat import ChatAssistant
 from .model_service import ModelService
 from .monitoring import metrics_summary, record_prediction
 from .schemas import (
     CaseRequest,
+    CaseRecord,
     ChatRequest,
     ChatResponse,
+    DecisionReceipt,
+    DecisionRequest,
     HealthResponse,
     MetricsSummary,
     PredictionResponse,
@@ -28,14 +32,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-        "https://blue-plant-0b724eb03.7.azurestaticapps.net",
-    ],
-    allow_origin_regex=r"https://.*\.(azurestaticapps\.net|azurewebsites\.net)",
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"],
+    allow_origin_regex=r"^(https://.*\.(azurestaticapps\.net|azurewebsites\.net|web\.core\.windows\.net)|http://(localhost|127\.0\.0\.1):517[0-9])$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -43,18 +41,364 @@ app.add_middleware(
 
 model_service = ModelService()
 chat_assistant = ChatAssistant(model_service)
+audit_store = AuditStore()
 ROOT = Path(__file__).resolve().parents[2]
 
+STAFF = {
+    "alice": {
+        "id": "staff-alice",
+        "name": "Alice Morgan",
+        "username": "alice.morgan@essex.example",
+        "role": "Housing repairs officer",
+        "team": "Contact centre",
+        "avatar_url": "/staff/alice-morgan.png",
+    },
+    "samir": {
+        "id": "staff-samir",
+        "name": "Samir Khan",
+        "username": "samir.khan@essex.example",
+        "role": "Duty manager",
+        "team": "Adult support",
+        "avatar_url": "/staff/samir-khan.png",
+    },
+    "tom": {
+        "id": "staff-tom",
+        "name": "Tom Bennett",
+        "username": "tom.bennett@essex.example",
+        "role": "Highways coordinator",
+        "team": "Highways duty desk",
+        "avatar_url": "/staff/tom-bennett.png",
+    },
+    "rachel": {
+        "id": "staff-rachel",
+        "name": "Rachel Hughes",
+        "username": "rachel.hughes@essex.example",
+        "role": "Revenues officer",
+        "team": "Revenues",
+        "avatar_url": "/staff/rachel-hughes.png",
+    },
+}
 
-@app.get("/", tags=["status"])
-def root() -> dict[str, object]:
-    return {
-        "service": "Service Priority AI API",
-        "status": "ok",
-        "health": "/health",
-        "docs": "/docs",
-        "predict": "POST /predict",
-    }
+CASE_QUEUE = [
+    CaseRecord(
+        case_id="ECC-365-1042",
+        title="Review now",
+        service_label="Housing repair",
+        team="Contact centre",
+        source="Outlook shared mailbox",
+        evidence="SharePoint repair photos",
+        handover="Teams duty note",
+        due="Within 2 hours",
+        risk="high",
+        action="Review and confirm priority",
+        summary="Possible fire risk in a housing repair case with children in the household.",
+        access_notes="Contact by phone first. Check safe access arrangements before assigning a repair visit.",
+        household_context="Children in household; vulnerability/safeguarding indicator present.",
+        status="In review",
+        last_updated="Today 09:24",
+        assigned_to=STAFF["alice"],
+        activity=[
+            {
+                "id": "act-1042-1",
+                "action": "System flag reviewed",
+                "detail": "High-priority flag opened from today's queue.",
+                "time": "Today 09:24",
+                "actor": STAFF["alice"],
+            },
+            {
+                "id": "act-1042-2",
+                "action": "Evidence attached",
+                "detail": "Repair photo and previous contact linked from 365 context.",
+                "time": "Today 09:20",
+                "actor": STAFF["alice"],
+            },
+        ],
+        evidence_items=[
+            {
+                "type": "photo",
+                "title": "Repair photo",
+                "detail": "Synthetic image showing the reported fire-risk area.",
+                "source": "SharePoint",
+                "image_url": "/case-evidence/housing-fire-risk-photo.png",
+            },
+            {
+                "type": "note",
+                "title": "Case note",
+                "detail": "Structured handover note with the key risk and access points.",
+                "source": "Teams handover",
+                "image_url": "/case-evidence/housing-case-note.png",
+            },
+            {"type": "document", "title": "Previous contact", "detail": "One earlier contact linked to the same repair issue.", "source": "Outlook"},
+        ],
+        case_notes=[
+            {
+                "id": "note-1042-teams",
+                "type": "case_note",
+                "app": "Teams",
+                "title": "Duty handover note",
+                "summary": "Contact centre flagged fire-risk wording and children in the household.",
+                "body": "Caller reported a possible fire risk in the repair area. Children are in the household. Officer should check safe access arrangements before assigning a visit.",
+                "time": "Today 09:12",
+                "owner": "Contact centre",
+                "external_url": "https://teams.microsoft.com/",
+            },
+            {
+                "id": "note-1042-sharepoint",
+                "type": "evidence",
+                "app": "SharePoint",
+                "title": "Repair evidence folder",
+                "summary": "Photos and the synthetic repair evidence record are linked to this case.",
+                "body": "Evidence folder contains the resident repair photo, previous contact reference, and audit note placeholders for the demo.",
+                "time": "Today 09:20",
+                "owner": "Housing repairs",
+                "external_url": "https://www.office.com/launch/sharepoint",
+            },
+        ],
+        previous_contacts=[
+            {
+                "id": "contact-1042-outlook",
+                "type": "previous_contact",
+                "app": "Outlook",
+                "title": "Resident email follow-up",
+                "summary": "Earlier email linked to the same repair issue.",
+                "body": "Resident asked for an update on the repair and repeated concern about safety in the home. No real personal data is stored in this synthetic demo.",
+                "time": "Yesterday 16:42",
+                "owner": "Shared mailbox",
+                "external_url": "https://outlook.office.com/mail/",
+            }
+        ],
+        case_request=CaseRequest(
+            service_type="housing",
+            service_subtype="fire_risk",
+            district="Chelmsford",
+            source_system="contact_centre",
+            sla_hours=24,
+            accessibility_need=True,
+            days_open=5,
+            previous_contacts=1,
+            vulnerability_flag=True,
+            deprivation_band="high",
+            channel="phone",
+            urgency_text="Fire risk and also children in house",
+        ),
+    ),
+    CaseRecord(
+        case_id="ECC-365-1044",
+        title="Assign officer",
+        service_label="Adult support",
+        team="Locality team",
+        source="SharePoint case library",
+        evidence="Care record export",
+        handover="Teams locality update",
+        due="Today",
+        risk="high",
+        action="Check safeguarding context",
+        summary="Adult support case where care package concerns suggest same-day review.",
+        access_notes="Assign to locality team before contacting provider.",
+        household_context="Vulnerability indicator present; resident may be without support.",
+        status="Waiting update",
+        last_updated="Today 08:48",
+        assigned_to=STAFF["samir"],
+        activity=[
+            {
+                "id": "act-1044-1",
+                "action": "Locality update added",
+                "detail": "Teams note says provider status needs checking.",
+                "time": "Today 08:48",
+                "actor": STAFF["samir"],
+            },
+            {
+                "id": "act-1044-2",
+                "action": "Care record linked",
+                "detail": "Synthetic SharePoint care record export attached.",
+                "time": "Today 08:41",
+                "actor": STAFF["samir"],
+            },
+        ],
+        evidence_items=[
+            {"type": "document", "title": "Care record export", "detail": "Synthetic care-package summary from SharePoint.", "source": "SharePoint"},
+            {"type": "note", "title": "Locality update", "detail": "Team note says support may have failed.", "source": "Teams"},
+        ],
+        case_notes=[
+            {
+                "id": "note-1044-teams",
+                "type": "case_note",
+                "app": "Teams",
+                "title": "Locality team update",
+                "summary": "Team note says the support package may not have been delivered.",
+                "body": "Locality team should check provider status before contacting the resident. Same-day review recommended because support may have failed.",
+                "time": "Today 08:35",
+                "owner": "Locality team",
+                "external_url": "https://teams.microsoft.com/",
+            }
+        ],
+        previous_contacts=[
+            {
+                "id": "contact-1044-sharepoint",
+                "type": "previous_contact",
+                "app": "SharePoint",
+                "title": "Previous support concern",
+                "summary": "Earlier case record mentions a related support concern.",
+                "body": "Synthetic previous contact record: resident may have experienced a missed support visit. Escalate according to service policy if confirmed.",
+                "time": "Yesterday 11:05",
+                "owner": "Adult support",
+                "external_url": "https://www.office.com/launch/sharepoint",
+            },
+            {
+                "id": "contact-1044-outlook",
+                "type": "previous_contact",
+                "app": "Outlook",
+                "title": "Provider update request",
+                "summary": "Email requesting confirmation from provider.",
+                "body": "Synthetic shared mailbox entry requesting provider confirmation. No live email is connected in this demo.",
+                "time": "Yesterday 14:18",
+                "owner": "Shared mailbox",
+                "external_url": "https://outlook.office.com/mail/",
+            },
+        ],
+        case_request=CaseRequest(
+            service_type="adult_social_care",
+            service_subtype="care_package_concern",
+            district="Harlow",
+            source_system="case_portal",
+            sla_hours=12,
+            days_open=2,
+            previous_contacts=2,
+            vulnerability_flag=True,
+            deprivation_band="medium",
+            channel="email",
+            urgency_text="Care package concern and resident left without support",
+        ),
+    ),
+    CaseRecord(
+        case_id="ECC-365-1043",
+        title="Check duplicate reports",
+        service_label="Highways & roads",
+        team="Highways duty desk",
+        source="Teams service channel",
+        evidence="SharePoint highways report",
+        handover="Highways channel thread",
+        due="1 day",
+        risk="medium",
+        action="Review repeated impact",
+        summary="Repeated highways report near a school route.",
+        access_notes="Check duplicate reports before scheduling inspection.",
+        household_context="No vulnerability indicator recorded.",
+        status="New",
+        last_updated="Today 10:05",
+        assigned_to=STAFF["tom"],
+        activity=[
+            {
+                "id": "act-1043-1",
+                "action": "Duplicate signal found",
+                "detail": "Teams handover mentions linked reports for the same route.",
+                "time": "Today 10:05",
+                "actor": STAFF["tom"],
+            },
+        ],
+        evidence_items=[
+            {"type": "photo", "title": "Road defect photo", "detail": "Synthetic photo placeholder from resident report.", "source": "SharePoint"},
+            {"type": "note", "title": "Duplicate signal", "detail": "Several reports mention the same location.", "source": "Teams"},
+        ],
+        case_notes=[
+            {
+                "id": "note-1043-teams",
+                "type": "case_note",
+                "app": "Teams",
+                "title": "Highways channel thread",
+                "summary": "Several reports may relate to the same location.",
+                "body": "Duty desk should check duplicate reports and decide whether one inspection can cover the linked reports.",
+                "time": "Today 10:05",
+                "owner": "Highways duty desk",
+                "external_url": "https://teams.microsoft.com/",
+            }
+        ],
+        previous_contacts=[
+            {
+                "id": "contact-1043-teams",
+                "type": "previous_contact",
+                "app": "Teams",
+                "title": "Duplicate report mention",
+                "summary": "Earlier handover message mentions the same route.",
+                "body": "Synthetic channel note: repeated resident reports mention a pothole near a school route.",
+                "time": "Yesterday 09:47",
+                "owner": "Highways duty desk",
+                "external_url": "https://teams.microsoft.com/",
+            }
+        ],
+        case_request=CaseRequest(
+            service_type="highways",
+            service_subtype="road_defect",
+            district="Colchester",
+            source_system="teams_referral",
+            sla_hours=72,
+            duplicate_signal=True,
+            days_open=4,
+            previous_contacts=3,
+            vulnerability_flag=False,
+            deprivation_band="medium",
+            channel="web",
+            urgency_text="Repeated pothole report near school route",
+        ),
+    ),
+    CaseRecord(
+        case_id="ECC-365-1045",
+        title="Standard queue",
+        service_label="Council tax & billing",
+        team="Revenues",
+        source="Online form",
+        evidence="Case portal record",
+        handover="Revenues queue",
+        due="3 days",
+        risk="low",
+        action="Handle in date order",
+        summary="Standard council tax billing query with no urgent risk indicators.",
+        access_notes="Respond through the case portal.",
+        household_context="No vulnerability indicator recorded.",
+        status="In progress",
+        last_updated="Today 12:18",
+        assigned_to=STAFF["rachel"],
+        activity=[
+            {
+                "id": "act-1045-1",
+                "action": "Form reviewed",
+                "detail": "Standard billing query accepted into the normal queue.",
+                "time": "Today 12:18",
+                "actor": STAFF["rachel"],
+            },
+        ],
+        evidence_items=[
+            {"type": "document", "title": "Form submission", "detail": "Synthetic online form record.", "source": "Case portal"},
+        ],
+        case_notes=[
+            {
+                "id": "note-1045-caseportal",
+                "type": "case_note",
+                "app": "Case portal",
+                "title": "Form submission",
+                "summary": "Resident asks for an update on a council tax bill.",
+                "body": "Standard billing query with no urgent risk wording. Handle in normal queue order.",
+                "time": "Today 12:10",
+                "owner": "Revenues",
+                "external_url": "https://www.office.com/",
+            }
+        ],
+        previous_contacts=[],
+        case_request=CaseRequest(
+            service_type="council_tax",
+            service_subtype="billing_query",
+            district="Basildon",
+            source_system="web_form",
+            sla_hours=168,
+            days_open=1,
+            previous_contacts=0,
+            vulnerability_flag=False,
+            deprivation_band="low",
+            channel="web",
+            urgency_text="Resident asks for update on council tax bill",
+        ),
+    ),
+]
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -70,6 +414,7 @@ def health() -> HealthResponse:
 def predict(payload: CaseRequest) -> PredictionResponse:
     result = model_service.predict(payload)
     record_prediction(payload.model_dump(), result)
+    audit_store.record_prediction(payload.model_dump(), result)
     return PredictionResponse(**result)
 
 
@@ -81,7 +426,16 @@ def chat(payload: ChatRequest) -> ChatResponse:
 
 @app.get("/metrics/summary", response_model=MetricsSummary)
 def summary() -> MetricsSummary:
-    return MetricsSummary(**metrics_summary())
+    metrics = metrics_summary()
+    audit = audit_store.summary()
+    metrics["operational_health"] = {
+        **metrics["operational_health"],
+        "audit_store": audit["store_mode"],
+        "durable_audit": audit["durable"],
+        "decision_records": audit["decision_records"],
+        "override_rate": audit["override_rate"],
+    }
+    return MetricsSummary(**metrics)
 
 
 @app.get("/model/metadata")
@@ -93,16 +447,109 @@ def metadata() -> dict[str, object]:
     }
 
 
+@app.get("/cases/queue", response_model=list[CaseRecord])
+def case_queue() -> list[CaseRecord]:
+    output = []
+    for record in CASE_QUEUE:
+        result = model_service.predict(record.case_request)
+        output.append(record.model_copy(update={"prediction": PredictionResponse(**result)}))
+    return output
+
+
+@app.post("/cases/{case_id}/decision", response_model=DecisionReceipt)
+def record_decision(case_id: str, payload: DecisionRequest) -> DecisionReceipt:
+    receipt = DecisionReceipt(
+        case_id=case_id,
+        status="recorded",
+        audit_id=make_audit_id("AUD"),
+        recorded_at=utc_now(),
+        final_priority=payload.final_priority,
+        model_priority=payload.prediction.priority,
+        override_recorded=payload.final_priority != payload.prediction.priority or bool(payload.override_reason.strip()),
+        action_taken=payload.action_taken,
+    )
+    audit_store.record_decision(case_id, payload.model_dump(), receipt.model_dump())
+    return receipt
+
+
+@app.get("/audit/decisions", response_model=list[DecisionReceipt])
+def audit_decisions() -> list[DecisionReceipt]:
+    return [DecisionReceipt(**item) for item in audit_store.decision_receipts(20)]
+
+
+@app.get("/audit/summary")
+def audit_summary() -> dict[str, object]:
+    return audit_store.summary()
+
+
+@app.get("/audit/predictions")
+def audit_predictions() -> list[dict[str, object]]:
+    return audit_store.list_predictions(20)
+
+
+@app.get("/monitoring/feedback-report")
+def feedback_report() -> dict[str, object]:
+    decisions = audit_store.list_decisions(200)
+    total = len(decisions)
+    overrides = [item for item in decisions if item.get("override_recorded")]
+    return {
+        "label_source": "officer_final_priority",
+        "decision_records": total,
+        "override_records": len(overrides),
+        "override_rate": round(len(overrides) / total, 4) if total else 0.0,
+        "review_note": "Synthetic officer decisions demonstrate the feedback loop needed before retraining or promotion.",
+        "recent_overrides": overrides[:5],
+    }
+
+
+@app.get("/monitoring/drift-report")
+def drift_report() -> dict[str, object]:
+    predictions = audit_store.list_predictions(200)
+    baseline = [record.case_request.model_dump() for record in CASE_QUEUE]
+    live = [
+        json.loads(str(item["payload_json"]))
+        for item in predictions
+        if item.get("payload_json")
+    ]
+
+    def distribution(rows: list[dict[str, object]], field: str) -> dict[str, float]:
+        if not rows:
+            return {}
+        counts: dict[str, int] = {}
+        for row in rows:
+            key = str(row.get(field, "unknown"))
+            counts[key] = counts.get(key, 0) + 1
+        return {key: round(value / len(rows), 4) for key, value in sorted(counts.items())}
+
+    service_baseline = distribution(baseline, "service_type")
+    service_live = distribution(live, "service_type")
+    drift_score = round(
+        sum(abs(service_live.get(key, 0.0) - service_baseline.get(key, 0.0)) for key in set(service_baseline) | set(service_live)),
+        4,
+    )
+    return {
+        "baseline": "synthetic_case_queue",
+        "live_window_records": len(live),
+        "status": "watch" if drift_score >= 0.35 else "stable",
+        "service_mix_drift_score": drift_score,
+        "service_type_baseline": service_baseline,
+        "service_type_live": service_live,
+        "deprivation_live": distribution(live, "deprivation_band"),
+        "review_note": "Synthetic drift report compares live scoring traffic against the demo queue baseline.",
+    }
+
+
 @app.get("/explainability/sample")
 def explainability_sample() -> dict[str, object]:
     sample = CaseRequest(
         service_type="housing",
-        days_open=7,
-        previous_contacts=4,
+        service_subtype="fire_risk",
+        days_open=5,
+        previous_contacts=1,
         vulnerability_flag=True,
         deprivation_band="high",
         channel="phone",
-        urgency_text="Tenant has no heating and there are young children in the property",
+        urgency_text="Fire risk and also children in house",
     )
     return {
         "sample_case": sample.model_dump(),
@@ -118,10 +565,11 @@ def dashboard_summary() -> dict[str, object]:
     metadata = read_json(ROOT / "ml" / "artifacts" / "model_metadata.json")
     shap_summary = read_json(ROOT / "ml" / "artifacts" / "shap_summary.json")
     batch_preview = read_csv(ROOT / "monitoring" / "powerbi" / "prediction_examples.csv", limit=6)
+    audit = audit_store.summary()
 
     return {
         "pipeline": [
-            {"step": "Data generation", "status": "complete", "detail": "1,500 synthetic service requests"},
+            {"step": "Data generation", "status": "complete", "detail": "25,000 synthetic Essex-style service requests"},
             {"step": "Training", "status": "complete", "detail": metadata.get("model_type", "scikit-learn pipeline")},
             {"step": "Evaluation", "status": "complete", "detail": f"Accuracy {evaluation.get('accuracy', 0)}"},
             {"step": "Registry candidate", "status": "ready", "detail": "Tags and gate summary generated"},
@@ -129,12 +577,14 @@ def dashboard_summary() -> dict[str, object]:
             {"step": "Batch scoring", "status": "ready", "detail": "Batch endpoint YAML + scoring script"},
         ],
         "azure_status": [
-            {"item": "Workspace", "status": "complete", "detail": "Azure ML workspace SaaS in rg-essex-mlops-demo, UK South"},
-            {"item": "Training job", "status": "complete", "detail": "credit_default_prediction completed on Azure serverless compute"},
-            {"item": "Model registry", "status": "complete", "detail": "Latest registered model version resolved as v1"},
-            {"item": "Managed endpoint", "status": "complete", "detail": "credit-endpoint-af589413 created successfully"},
-            {"item": "Online deployment", "status": "blocked", "detail": "Free subscription CPU quota blocked DSv2/DS1v2 managed deployment"},
-            {"item": "Website serving", "status": "ready", "detail": "Dashboard uses Railway FastAPI /predict until Azure ML endpoint quota is approved"},
+            {"item": "Workspace", "status": "complete", "detail": "Azure ML workspace mlw-service-priority-ai-v2 in rg-service-priority-ai-demo, UK South"},
+            {"item": "Model registry", "status": "complete", "detail": "service-priority-ai model registered as v1 with synthetic-data governance tags"},
+            {"item": "Online endpoint", "status": "complete", "detail": "ep-service-priority-ai scoring endpoint routes 100% traffic to blue"},
+            {"item": "Online deployment", "status": "complete", "detail": "blue deployment serves model v0.1.0 on service-priority-serving v2"},
+            {"item": "Batch endpoint", "status": "complete", "detail": "be-service-priority-ai default deployment completed a sample CSV scoring run"},
+            {"item": "Browser API", "status": "complete", "detail": "Azure Functions exposes FastAPI for the browser without exposing Azure ML endpoint credentials"},
+            {"item": "Durable audit", "status": "complete" if audit["durable"] else "ready", "detail": f"{audit['store_mode']} audit store records predictions, officer decisions, overrides, model version and confidence"},
+            {"item": "Website serving", "status": "complete", "detail": "Azure-hosted frontend builds with VITE_API_BASE pointing at the Functions API"},
         ],
         "registry": [
             {
@@ -144,7 +594,7 @@ def dashboard_summary() -> dict[str, object]:
                 "macro_f1": evaluation.get("macro_f1"),
                 "high_priority_recall": gate_summary.get("high_priority_recall"),
                 "gate": gate_summary.get("high_priority_recall_gate", "review"),
-                "target": "Railway FastAPI / Azure ML managed endpoint",
+                "target": "FastAPI local / Azure ML managed endpoint",
             }
         ],
         "monitoring_trend": [
@@ -161,10 +611,13 @@ def dashboard_summary() -> dict[str, object]:
             {"item": "Model card", "status": "ready", "owner": "AI/ML engineer"},
             {"item": "DPIA-lite review", "status": "ready", "owner": "Information governance"},
             {"item": "Fairness cohorts", "status": "ready", "owner": "Data science"},
-            {"item": "Human review route", "status": "required", "owner": "Service team"},
+            {"item": "Human review route", "status": "ready", "owner": "Service team"},
+            {"item": "Prediction audit trail", "status": "ready", "owner": "AI/ML engineer"},
+            {"item": "Officer feedback loop", "status": "ready", "owner": "Service team"},
             {"item": "Azure RAI scorecard", "status": "requires Azure", "owner": "AI/ML engineer"},
             {"item": "Power BI publish", "status": "requires workspace", "owner": "Analytics"},
         ],
+        "audit": audit,
     }
 
 

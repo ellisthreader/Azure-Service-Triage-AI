@@ -1,6 +1,6 @@
 $schema: https://azuremlschemas.azureedge.net/latest/environment.schema.json
 name: service-priority-serving
-version: "1"
+version: "2"
 description: Minimal managed online endpoint serving environment for Service Priority AI.
 image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu22.04:latest
 conda_file:
@@ -10,7 +10,8 @@ conda_file:
     - python=3.11
     - pip
     - pip:
-        - pandas>=2.2,<3
-        - numpy>=1.26,<3
-        - scikit-learn>=1.4,<2
-        - joblib>=1.3,<2
+        - azureml-inference-server-http>=1.4,<2
+        - pandas==2.2.3
+        - numpy==2.2.1
+        - scikit-learn==1.6.0
+        - joblib==1.4.2

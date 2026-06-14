@@ -397,6 +397,10 @@
     right: 16px;
     bottom: 16px;
   }
+
+  .fab-ping {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -11,10 +11,10 @@ export function Home({ onOpenChat, onNavigate }: Props) {
     <div className="portal">
       <Hero onAsk={onOpenChat} onOpen={onNavigate} />
       <TrustStrip />
-      <Queue onOpen={onNavigate} />
-      <Services onOpen={onNavigate} />
-      <Tiles onOpen={onNavigate} />
-      <Features onOpen={onNavigate} />
+      <Queue />
+      <Services />
+      <Tiles />
+      <Features />
       <Quotes />
       <News />
       <Cta onAsk={() => onOpenChat()} />

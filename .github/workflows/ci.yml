@@ -38,6 +38,13 @@ jobs:
 
           paths = [
               Path("azure/ml-pipeline.yml"),
+              Path("azure/online-endpoint.yml"),
+              Path("azure/online-deployment.yml"),
+              Path("azure/batch-endpoint.yml"),
+              Path("azure/batch-deployment.yml"),
+              Path("azure/environments/training.yml"),
+              Path("azure/environments/serving.yml"),
+              Path("azure/environments/batch.yml"),
               Path(".github/workflows/ci.yml"),
           ]
 
@@ -59,9 +66,11 @@ jobs:
           checks = {
               "azure/README.md": [
                   "Training Pipeline",
+                  "Create Azure ML Environments",
                   "Model Registry",
                   "Managed Online Endpoint",
                   "Batch Scoring",
+                  "Responsible AI Dashboard",
                   "Secrets and Identity",
                   "Monitoring and Responsible AI",
                   "CI Checks",
@@ -73,6 +82,11 @@ jobs:
                   "Batch Scoring Deployment Shape",
                   "Security Notes",
                   "Operational Monitoring",
+              ],
+              "azure/responsible-ai/README.md": [
+                  "Dashboard Components To Use",
+                  "Governance Review Questions",
+                  "Scorecard Expectation",
               ],
           }
 
@@ -122,10 +136,20 @@ jobs:
               for job in (pipeline.get("jobs") or {}).values()
               if isinstance(job, dict)
           )
-          expected_scripts = ["generate_data.py", "train_model.py"]
+          expected_scripts = ["generate_data.py", "train_model.py", "evaluate_model.py"]
           missing_scripts = [script for script in expected_scripts if script not in commands]
           if missing_scripts:
               print(f"Pipeline no longer references expected scripts: {missing_scripts}", file=sys.stderr)
+              sys.exit(1)
+
+          deployment = yaml.safe_load(Path("azure/online-deployment.yml").read_text(encoding="utf-8"))
+          if deployment.get("code_configuration", {}).get("scoring_script") != "azure/score_online.py":
+              print("Online deployment must reference azure/score_online.py", file=sys.stderr)
+              sys.exit(1)
+
+          batch = yaml.safe_load(Path("azure/batch-deployment.yml").read_text(encoding="utf-8"))
+          if batch.get("code_configuration", {}).get("scoring_script") != "ml/batch_score.py":
+              print("Batch deployment must reference ml/batch_score.py", file=sys.stderr)
               sys.exit(1)
 
           print("Azure ML pipeline starter contract OK")
@@ -148,9 +172,4 @@ jobs:
           PY
 
       - name: Optional pytest
-        run: |
-          if find . -path './.git' -prune -o -name 'test_*.py' -print -quit | grep -q .; then
-            python -m pytest
-          else
-            echo "No pytest tests found yet; skipping."
-          fi
+        run: python -m pytest

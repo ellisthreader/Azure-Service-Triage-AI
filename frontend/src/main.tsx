@@ -34,7 +34,7 @@ function App() {
 
   return (
     <div className={`app app--${route}`}>
-      <TopNav route={route} online={online} onNavigate={navigate} onOpenChat={() => openChat()} />
+      {route === "home" && <TopNav route={route} online={online} onNavigate={navigate} onOpenChat={() => openChat()} />}
 
       <main className="main-col">
         {route === "home" ? (
@@ -49,15 +49,17 @@ function App() {
         )}
       </main>
 
-      <ChatWidget
-        open={chatOpen}
-        onToggle={() => setChatOpen((value) => !value)}
-        onClose={() => setChatOpen(false)}
-        caseContext={caseInput}
-        online={online}
-        seed={seed}
-        onSeedConsumed={() => setSeed(null)}
-      />
+      {route === "home" && (
+        <ChatWidget
+          open={chatOpen}
+          onToggle={() => setChatOpen((value) => !value)}
+          onClose={() => setChatOpen(false)}
+          caseContext={caseInput}
+          online={online}
+          seed={seed}
+          onSeedConsumed={() => setSeed(null)}
+        />
+      )}
     </div>
   );
 }

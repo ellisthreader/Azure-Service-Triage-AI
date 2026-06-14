@@ -1,55 +1,55 @@
 {
-  "accuracy": 0.9033,
-  "macro_f1": 0.9045,
-  "high_priority_recall": 0.9661,
+  "accuracy": 0.902,
+  "macro_f1": 0.9035,
+  "high_priority_recall": 0.9408,
   "classification_report": {
     "high": {
-      "precision": 0.890625,
-      "recall": 0.9661016949152542,
-      "f1-score": 0.926829268292683,
-      "support": 59.0
+      "precision": 0.9109347442680776,
+      "recall": 0.9408014571948998,
+      "f1-score": 0.9256272401433692,
+      "support": 1098.0
     },
     "low": {
-      "precision": 0.9465648854961832,
-      "recall": 0.9051094890510949,
-      "f1-score": 0.9253731343283582,
-      "support": 137.0
+      "precision": 0.9368118717089516,
+      "recall": 0.9106561191251745,
+      "f1-score": 0.9235488437942425,
+      "support": 2149.0
     },
     "medium": {
-      "precision": 0.8571428571428571,
-      "recall": 0.8653846153846154,
-      "f1-score": 0.861244019138756,
-      "support": 104.0
+      "precision": 0.855374226223973,
+      "recall": 0.8670849971477467,
+      "f1-score": 0.8611898016997167,
+      "support": 1753.0
     },
-    "accuracy": 0.9033333333333333,
+    "accuracy": 0.902,
     "macro avg": {
-      "precision": 0.8981109142130134,
-      "recall": 0.9121985997836548,
-      "f1-score": 0.904482140586599,
-      "support": 300.0
+      "precision": 0.9010402807336675,
+      "recall": 0.906180857822607,
+      "f1-score": 0.9034552952124427,
+      "support": 5000.0
     },
     "weighted avg": {
-      "precision": 0.9045637381861142,
-      "recall": 0.9033333333333333,
-      "f1-score": 0.90342808074228,
-      "support": 300.0
+      "precision": 0.9025772160159022,
+      "recall": 0.902,
+      "f1-score": 0.90214217947417,
+      "support": 5000.0
     }
   },
   "confusion_matrix": [
     [
-      57,
+      1033,
       0,
-      2
+      65
     ],
     [
       0,
-      124,
-      13
+      1957,
+      192
     ],
     [
-      7,
-      7,
-      90
+      101,
+      132,
+      1520
     ]
   ],
   "labels": [
@@ -57,72 +57,72 @@
     "low",
     "medium"
   ],
-  "validation_rows": 300,
+  "validation_rows": 5000,
   "fairness_slices": {
     "vulnerability_flag": {
       "False": {
-        "rows": 227,
-        "high_priority_rate": 0.0529,
-        "accuracy": 0.9119
+        "rows": 3617,
+        "high_priority_rate": 0.084,
+        "accuracy": 0.9007
       },
       "True": {
-        "rows": 73,
-        "high_priority_rate": 0.7123,
-        "accuracy": 0.8767
+        "rows": 1383,
+        "high_priority_rate": 0.6001,
+        "accuracy": 0.9053
       }
     },
     "deprivation_band": {
       "high": {
-        "rows": 75,
-        "high_priority_rate": 0.2667,
-        "accuracy": 0.92
+        "rows": 1466,
+        "high_priority_rate": 0.2851,
+        "accuracy": 0.8997
       },
       "low": {
-        "rows": 99,
-        "high_priority_rate": 0.202,
-        "accuracy": 0.9091
+        "rows": 851,
+        "high_priority_rate": 0.1986,
+        "accuracy": 0.9001
       },
       "medium": {
-        "rows": 126,
-        "high_priority_rate": 0.1905,
-        "accuracy": 0.8889
+        "rows": 2683,
+        "high_priority_rate": 0.2039,
+        "accuracy": 0.9038
       }
     },
     "service_type": {
       "adult_social_care": {
-        "rows": 44,
-        "high_priority_rate": 0.3864,
-        "accuracy": 0.8864
+        "rows": 689,
+        "high_priority_rate": 0.4891,
+        "accuracy": 0.881
       },
       "benefits": {
-        "rows": 43,
-        "high_priority_rate": 0.186,
-        "accuracy": 0.9302
+        "rows": 677,
+        "high_priority_rate": 0.0768,
+        "accuracy": 0.9114
       },
       "children_services": {
-        "rows": 55,
-        "high_priority_rate": 0.2,
-        "accuracy": 0.8909
+        "rows": 965,
+        "high_priority_rate": 0.4114,
+        "accuracy": 0.9057
       },
       "council_tax": {
-        "rows": 40,
-        "high_priority_rate": 0.175,
-        "accuracy": 1.0
+        "rows": 634,
+        "high_priority_rate": 0.0568,
+        "accuracy": 0.9006
       },
       "highways": {
-        "rows": 44,
-        "high_priority_rate": 0.1364,
-        "accuracy": 0.7955
+        "rows": 906,
+        "high_priority_rate": 0.0993,
+        "accuracy": 0.9084
       },
       "housing": {
-        "rows": 38,
-        "high_priority_rate": 0.2632,
-        "accuracy": 0.8684
+        "rows": 598,
+        "high_priority_rate": 0.3278,
+        "accuracy": 0.8712
       },
       "waste": {
-        "rows": 36,
-        "high_priority_rate": 0.1389,
-        "accuracy": 0.9722
+        "rows": 531,
+        "high_priority_rate": 0.049,
+        "accuracy": 0.936
       }
     }
   }

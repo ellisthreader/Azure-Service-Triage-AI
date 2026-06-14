@@ -1,16 +1,39 @@
-# Azure ML and MLOps Starter Guide
+# Azure ML and MLOps Guide
 
-This folder documents an Azure-ready path for the Azure Council case-prioritisation demo. The project remains runnable locally, but the structure below shows how the same model lifecycle can move into Azure Machine Learning with reproducible training, model registration, managed serving, batch scoring, monitoring, and CI checks.
+This folder contains Azure-ready assets for Service Priority AI. The project remains runnable locally, but the files here show how the same model lifecycle can move into Azure Machine Learning with reproducible training, model registration, managed serving, batch scoring, Responsible AI review, monitoring, and CI checks.
 
-The examples assume Azure ML CLI v2 and a workspace already exists. They are intentionally starter templates: update names, compute sizes, storage paths, and script paths once the `ml/` and `backend/` implementation lands.
+The examples assume Azure ML CLI v2 and a workspace already exists. Update resource group, workspace, compute, and model versions for your Azure subscription.
+
+## Current Azure ML Status
+
+As of 2026-06-14, the Azure ML path is deployed in:
+
+- Resource group: `rg-service-priority-ai-demo`
+- Workspace: `mlw-service-priority-ai-v2`
+- Registered model: `service-priority-ai:1`
+- Online endpoint: `ep-service-priority-ai`, deployment `blue`, traffic `blue=100`
+- Batch endpoint: `be-service-priority-ai`, deployment `default`, compute `cpu-cluster`
+- Browser API wrapper: Azure Functions app `func-service-priority-ai-api`, HTTPS-only enabled
+- Public frontend: Azure Storage static website `stspaisite154550` in `rg-service-priority-ai-demo`, deployed from the Vite `dist` output and configured with `VITE_API_BASE=https://func-service-priority-ai-api.azurewebsites.net`
+- Static Web Apps resource: `service-priority-ai-site` in `rg-essex-mlops-demo`; keep for follow-up investigation because it accepted successful deployments but served Azure 404 content on 2026-06-14.
+- Monthly subscription budget: `service-priority-ai-monthly-10`, amount `10`, email alerts at 80% and 100%
+
+The serving environment is `service-priority-serving:2`; it includes `azureml-inference-server-http` and pins pandas, NumPy, scikit-learn, and joblib to the local model-training versions. The batch environment is `service-priority-batch:2` with the same model-compatible pins.
+
+## Website Hosting Path
+
+For a public website demo, use Azure App Service for the FastAPI backend and Azure Static Web Apps for the React frontend. See `azure/web-app-deployment.md`. The Azure ML managed online endpoint is now available for model scoring, but the React app should still call a governed API wrapper rather than exposing direct Azure ML endpoint auth in the browser.
+
+In this subscription, Linux App Service plan creation in UK South returned a VM quota limit of zero. The working browser API path therefore uses Azure Functions Flex Consumption with `function_app.py` wrapping the existing FastAPI app.
 
 ## Target Azure Architecture
 
 - Source control: GitHub repository with pull request checks in `.github/workflows/ci.yml`.
 - Training orchestration: Azure ML pipeline job defined in `azure/ml-pipeline.yml`.
+- Environments: reusable Azure ML environment assets in `azure/environments/`.
 - Compute: CPU cluster for training/evaluation, small managed online endpoint instance for real-time scoring, and separate batch scoring compute for scheduled workloads.
 - Model registry: Azure ML workspace model registry with versioned model assets, tags, metrics, and model-card metadata.
-- Serving: Managed online endpoint for FastAPI-compatible real-time scoring and batch endpoint for offline case scoring.
+- Serving: managed online endpoint using `azure/score_online.py` and batch endpoint using `ml/batch_score.py`.
 - Secrets: GitHub OIDC or service principal for CI, Azure Key Vault for runtime secrets, and managed identity for workspace resources.
 - Monitoring: prediction logs, endpoint metrics, drift checks, fairness summaries, and model performance reports.
 
@@ -28,12 +51,32 @@ az account set --subscription "<subscription-id>"
 Set common variables locally or in CI:
 
 ```bash
-export AZURE_RESOURCE_GROUP="rg-azure-council-ml"
-export AZURE_ML_WORKSPACE="mlw-azure-council"
+export AZURE_RESOURCE_GROUP="rg-service-priority-ai"
+export AZURE_ML_WORKSPACE="mlw-service-priority-ai"
 export AZURE_LOCATION="uksouth"
 export AZURE_ML_COMPUTE="cpu-cluster"
-export AZURE_ML_EXPERIMENT="case-priority-training"
+export AZURE_ML_EXPERIMENT="service-priority-ai"
 ```
+
+Scripted deployment path:
+
+```bash
+bash azure/deploy-azureml.sh
+```
+
+After model review and registration, create endpoints with:
+
+```bash
+bash azure/deploy-endpoints.sh
+```
+
+Run all local validation checks with:
+
+```bash
+bash azure/local-validation.sh
+```
+
+See `azure/azure-deployment-boundary.md` for the exact local/cloud boundary.
 
 Recommended Azure resources:
 
@@ -43,16 +86,37 @@ Recommended Azure resources:
 - Azure Key Vault attached to the workspace.
 - Application Insights or Azure Monitor workspace for endpoint telemetry.
 
+## Create Azure ML Environments
+
+Create the reusable environments before submitting jobs or deployments:
+
+```bash
+az ml environment create \
+  --file azure/environments/training.yml \
+  --resource-group "$AZURE_RESOURCE_GROUP" \
+  --workspace-name "$AZURE_ML_WORKSPACE"
+
+az ml environment create \
+  --file azure/environments/serving.yml \
+  --resource-group "$AZURE_RESOURCE_GROUP" \
+  --workspace-name "$AZURE_ML_WORKSPACE"
+
+az ml environment create \
+  --file azure/environments/batch.yml \
+  --resource-group "$AZURE_RESOURCE_GROUP" \
+  --workspace-name "$AZURE_ML_WORKSPACE"
+```
+
 ## Training Pipeline
 
-`azure/ml-pipeline.yml` is a CLI v2 pipeline-job starter. It separates the lifecycle into clear steps:
+`azure/ml-pipeline.yml` is a CLI v2 pipeline job. It separates the lifecycle into clear steps:
 
-- Generate synthetic council case data.
+- Generate synthetic service request data.
 - Train a scikit-learn model using text, categorical, and numeric features.
-- Evaluate accuracy, macro F1, class-level metrics, fairness slices, and calibration.
-- Produce model outputs, evaluation JSON, model-card metadata, and deployment candidate assets.
+- Evaluate accuracy, macro F1, high-priority recall, fairness slices, and deployment gates.
+- Produce model outputs, evaluation JSON, gate summary, model-card metadata, and registry candidate assets.
 
-The current starter calls the existing `ml/generate_data.py` and `ml/train_model.py` scripts, then packages their joblib artifacts as an Azure ML custom model. As the project matures, the inline evaluation and registry-preparation commands can move into dedicated scripts.
+The pipeline calls the existing `ml/generate_data.py`, `ml/train_model.py`, and `ml/evaluate_model.py` scripts, then packages their joblib artifacts as an Azure ML custom model candidate.
 
 Submit the pipeline:
 
@@ -72,14 +136,14 @@ Register a model only after the evaluation report and model card have been revie
 
 ```bash
 az ml model create \
-  --name azure-council-case-priority \
+  --name service-priority-ai \
   --type custom_model \
   --path "azureml://jobs/<job-name>/outputs/artifacts/paths/trained_model" \
   --resource-group "$AZURE_RESOURCE_GROUP" \
   --workspace-name "$AZURE_ML_WORKSPACE" \
   --tags \
-      project=azure-council \
-      use_case=case-prioritisation \
+      project=service-priority-ai \
+      use_case=service-request-prioritisation \
       data=synthetic \
       human_review_required=true \
       responsible_ai_review=pending
@@ -94,38 +158,34 @@ Registry expectations:
 
 ## Managed Online Endpoint
 
-Use a managed online endpoint for interactive dashboard predictions. The endpoint should return priority, confidence, and explanation factors; the frontend should still state that a human officer makes the final decision.
-
-Suggested files once serving code exists:
-
-```text
-azure/online-endpoint.yml
-azure/online-deployment.yml
-backend/score.py
-backend/requirements-serving.txt
-```
+Use a managed online endpoint for interactive dashboard predictions. The endpoint returns priority, confidence, class probabilities, explanation factors, model version, and whether human review is required.
 
 Endpoint creation outline:
 
 ```bash
 az ml online-endpoint create \
-  --name "ep-azure-council-priority" \
-  --auth-mode aad_token \
+  --file azure/online-endpoint.yml \
   --resource-group "$AZURE_RESOURCE_GROUP" \
   --workspace-name "$AZURE_ML_WORKSPACE"
 
 az ml online-deployment create \
-  --name "blue" \
-  --endpoint-name "ep-azure-council-priority" \
-  --model "azure-council-case-priority:<version>" \
-  --instance-type "Standard_DS3_v2" \
-  --instance-count 1 \
+  --file azure/online-deployment.yml \
   --resource-group "$AZURE_RESOURCE_GROUP" \
   --workspace-name "$AZURE_ML_WORKSPACE"
 
 az ml online-endpoint update \
-  --name "ep-azure-council-priority" \
+  --name ep-service-priority-ai \
   --traffic "blue=100" \
+  --resource-group "$AZURE_RESOURCE_GROUP" \
+  --workspace-name "$AZURE_ML_WORKSPACE"
+```
+
+Smoke test:
+
+```bash
+az ml online-endpoint invoke \
+  --name ep-service-priority-ai \
+  --request-file azure/samples/online-request.json \
   --resource-group "$AZURE_RESOURCE_GROUP" \
   --workspace-name "$AZURE_ML_WORKSPACE"
 ```
@@ -146,8 +206,8 @@ Batch scoring is useful for scheduled review queues, monitoring backfills, and r
 
 Recommended flow:
 
-1. Register a batch input data asset such as a folder of case records in CSV or Parquet.
-2. Create a batch endpoint named `be-azure-council-priority`.
+1. Register a batch input data asset such as a folder of request records in CSV or Parquet.
+2. Create a batch endpoint named `be-service-priority-ai`.
 3. Deploy a batch scoring component that loads the registered model and writes predictions with confidence and explanation fields.
 4. Schedule batch invocations for synthetic demo data or approved operational extracts.
 5. Store outputs in a governed datastore path partitioned by run date and model version.
@@ -157,11 +217,35 @@ Example invocation shape:
 
 ```bash
 az ml batch-endpoint invoke \
-  --name "be-azure-council-priority" \
-  --input "azureml:synthetic-council-cases@latest" \
+  --name "be-service-priority-ai" \
+  --input "azureml:synthetic-service-requests@latest" \
   --resource-group "$AZURE_RESOURCE_GROUP" \
   --workspace-name "$AZURE_ML_WORKSPACE"
 ```
+
+Endpoint creation:
+
+```bash
+az ml batch-endpoint create \
+  --file azure/batch-endpoint.yml \
+  --resource-group "$AZURE_RESOURCE_GROUP" \
+  --workspace-name "$AZURE_ML_WORKSPACE"
+
+az ml batch-deployment create \
+  --file azure/batch-deployment.yml \
+  --resource-group "$AZURE_RESOURCE_GROUP" \
+  --workspace-name "$AZURE_ML_WORKSPACE"
+```
+
+## Responsible AI Dashboard
+
+Prepare dashboard input files:
+
+```bash
+python ml/prepare_responsible_ai_inputs.py
+```
+
+Then follow `azure/responsible-ai/README.md` to create Azure ML Responsible AI dashboard assets for model performance, fairness cohorts, error analysis, and interpretability. Export the scorecard PDF and keep it with the model review package.
 
 ## Secrets and Identity
 

@@ -205,6 +205,66 @@ Example `503`:
 }
 ```
 
+## GET /cases/queue
+
+Returns the employee-facing priority queue. Cases are already scored by the model so the worker opens the dashboard, reviews the highest-priority case, and decides what to do next.
+
+### Response: 200 OK
+
+```json
+[
+  {
+    "case_id": "ECC-365-1042",
+    "service_label": "Housing repair",
+    "team": "Contact centre",
+    "source": "Outlook shared mailbox",
+    "evidence": "SharePoint repair photos",
+    "handover": "Teams duty note",
+    "due": "Within 2 hours",
+    "risk": "high",
+    "action": "Review and confirm priority",
+    "summary": "Possible fire risk in a housing repair case with children in the household.",
+    "prediction": {
+      "priority": "high",
+      "confidence": 0.86,
+      "human_review_required": true
+    }
+  }
+]
+```
+
+## POST /cases/{case_id}/decision
+
+Records the officer's final priority. The model recommendation remains advisory; the saved record represents the human decision. `action_taken` is optional and reserved for a future workflow step.
+
+### Request
+
+```json
+{
+  "final_priority": "high",
+  "override_reason": "",
+  "action_taken": "",
+  "officer_id": "demo.officer",
+  "case_request": {},
+  "prediction": {}
+}
+```
+
+### Response: 200 OK
+
+```json
+{
+  "case_id": "ECC-365-1042",
+  "status": "recorded",
+  "audit_id": "AUD-20260604103000-001",
+  "recorded_at": "2026-06-04T10:30:00Z",
+  "final_priority": "high",
+  "model_priority": "high",
+  "override_recorded": false,
+  "action_taken": ""
+}
+```
+
 ## GET /metrics/summary
 
 Returns dashboard-ready monitoring summaries for model quality, drift, fairness, and operational health. Metrics may be calculated from validation data, recent prediction logs, or synthetic monitoring fixtures depending on the project phase.
@@ -294,6 +354,83 @@ Example `503`:
       "source": "monitoring/metrics_summary.json"
     }
   }
+}
+```
+
+## GET /audit/summary
+
+Returns the active audit-store status and recent record counts. In Azure Functions this should report Azure Table Storage when the Function App storage account is available; locally it can report the in-memory fallback.
+
+### Response: 200 OK
+
+```json
+{
+  "store_mode": "azure_table",
+  "durable": true,
+  "table_name": "ServicePriorityAudit",
+  "prediction_records": 14,
+  "decision_records": 3,
+  "override_rate": 0.3333,
+  "low_confidence_rate": 0.0714,
+  "high_priority_rate": 0.4286,
+  "latest_decision_at": "2026-06-14T15:55:10.100000+00:00"
+}
+```
+
+## GET /audit/decisions
+
+Returns recent officer decision receipts recorded through `POST /cases/{case_id}/decision`.
+
+### Response: 200 OK
+
+```json
+[
+  {
+    "case_id": "ECC-365-1042",
+    "status": "recorded",
+    "audit_id": "AUD-20260614155510-AB12CD34",
+    "recorded_at": "2026-06-14T15:55:10.100000+00:00",
+    "final_priority": "high",
+    "model_priority": "high",
+    "override_recorded": false,
+    "action_taken": ""
+  }
+]
+```
+
+## GET /monitoring/feedback-report
+
+Returns a synthetic feedback-loop report from recorded officer decisions.
+
+### Response: 200 OK
+
+```json
+{
+  "label_source": "officer_final_priority",
+  "decision_records": 3,
+  "override_records": 1,
+  "override_rate": 0.3333,
+  "review_note": "Synthetic officer decisions demonstrate the feedback loop needed before retraining or promotion.",
+  "recent_overrides": []
+}
+```
+
+## GET /monitoring/drift-report
+
+Returns a lightweight drift report comparing recent audited prediction traffic against the synthetic case queue baseline.
+
+### Response: 200 OK
+
+```json
+{
+  "baseline": "synthetic_case_queue",
+  "live_window_records": 14,
+  "status": "stable",
+  "service_mix_drift_score": 0.2143,
+  "service_type_baseline": {"adult_social_care": 0.25, "council_tax": 0.25, "highways": 0.25, "housing": 0.25},
+  "service_type_live": {"housing": 0.5, "highways": 0.25, "council_tax": 0.25},
+  "deprivation_live": {"high": 0.5, "medium": 0.25, "low": 0.25},
+  "review_note": "Synthetic drift report compares live scoring traffic against the demo queue baseline."
 }
 ```
 
@@ -450,4 +587,3 @@ Example `422`:
   ]
 }
 ```
-

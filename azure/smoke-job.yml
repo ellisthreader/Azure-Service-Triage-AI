@@ -1,0 +1,7 @@
+$schema: https://azuremlschemas.azureedge.net/latest/commandJob.schema.json
+type: command
+display_name: service-priority-ai-smoke
+command: python hello.py
+code: smoke_code
+environment: azureml://registries/azureml/environments/sklearn-1.5/versions/1
+compute: azureml:serverless

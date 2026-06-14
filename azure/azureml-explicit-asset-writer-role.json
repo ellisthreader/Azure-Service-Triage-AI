@@ -1,0 +1,30 @@
+{
+  "Name": "AzureML Explicit Asset Writer - Service Priority AI",
+  "IsCustom": true,
+  "Description": "Explicit Azure ML asset write permissions for model, code, job, and datastore secret operations in the Service Priority AI demo workspace.",
+  "Actions": [
+    "Microsoft.MachineLearningServices/workspaces/read",
+    "Microsoft.MachineLearningServices/workspaces/*/read",
+    "Microsoft.MachineLearningServices/workspaces/*/write",
+    "Microsoft.MachineLearningServices/workspaces/*/action",
+    "Microsoft.MachineLearningServices/workspaces/models/read",
+    "Microsoft.MachineLearningServices/workspaces/models/write",
+    "Microsoft.MachineLearningServices/workspaces/models/versions/read",
+    "Microsoft.MachineLearningServices/workspaces/models/versions/write",
+    "Microsoft.MachineLearningServices/workspaces/codes/read",
+    "Microsoft.MachineLearningServices/workspaces/codes/write",
+    "Microsoft.MachineLearningServices/workspaces/codes/versions/read",
+    "Microsoft.MachineLearningServices/workspaces/codes/versions/write",
+    "Microsoft.MachineLearningServices/workspaces/jobs/read",
+    "Microsoft.MachineLearningServices/workspaces/jobs/write",
+    "Microsoft.MachineLearningServices/workspaces/datastores/read",
+    "Microsoft.MachineLearningServices/workspaces/datastores/write",
+    "Microsoft.MachineLearningServices/workspaces/datastores/listsecrets/action"
+  ],
+  "NotActions": [],
+  "DataActions": [],
+  "NotDataActions": [],
+  "AssignableScopes": [
+    "/subscriptions/c818dc30-fbff-4b2d-9db6-5d9244ac0b3d"
+  ]
+}

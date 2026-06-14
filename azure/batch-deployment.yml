@@ -5,7 +5,7 @@ model: azureml:service-priority-ai:1
 code_configuration:
   code: ..
   scoring_script: ml/batch_score.py
-environment: azureml:service-priority-batch:1
+environment: azureml:service-priority-batch:2
 compute: azureml:cpu-cluster
 resources:
   instance_count: 1

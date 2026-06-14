@@ -5,8 +5,8 @@ model: azureml:service-priority-ai:1
 code_configuration:
   code: ..
   scoring_script: azure/score_online.py
-environment: azureml:service-priority-serving:1
-instance_type: Standard_DS3_v2
+environment: azureml:service-priority-serving:2
+instance_type: Standard_DS2_v2
 instance_count: 1
 request_settings:
   request_timeout_ms: 5000

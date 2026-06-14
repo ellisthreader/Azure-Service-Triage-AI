@@ -127,7 +127,7 @@ class ModelService:
             reasons.append(Reason(factor="Case age", impact="The case has been open long enough to require attention."))
         if payload.previous_contacts >= 3:
             reasons.append(Reason(factor="Repeat contacts", impact="Multiple contacts can indicate unresolved resident impact."))
-        if any(term in text for term in ["safeguarding", "homelessness", "unsafe", "no heating", "failing"]):
+        if any(term in text for term in ["safeguarding", "homelessness", "unsafe", "no heating", "fire risk", "children", "child", "failing"]):
             reasons.append(Reason(factor="Urgency wording", impact="The case text contains high-risk terms."))
         if payload.deprivation_band == "high":
             reasons.append(Reason(factor="Area context", impact="Used as a service-risk context signal, not an eligibility decision."))
@@ -148,7 +148,8 @@ class ModelService:
             score += 1
         if payload.service_type in {"adult_social_care", "children_services"}:
             score += 2
-        if "safeguarding" in payload.urgency_text.lower() or "homelessness" in payload.urgency_text.lower():
+        urgency_text = payload.urgency_text.lower()
+        if any(term in urgency_text for term in ["safeguarding", "homelessness", "unsafe", "fire risk", "children", "child"]):
             score += 3
 
         priority = "high" if score >= 7 else "medium" if score >= 4 else "low"

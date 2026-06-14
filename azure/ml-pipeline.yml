@@ -1,11 +1,11 @@
 $schema: https://azuremlschemas.azureedge.net/latest/pipelineJob.schema.json
 type: pipeline
-display_name: azure-council-case-priority-training
+display_name: service-priority-ai-training
 description: >
-  Starter Azure ML pipeline for the fictional council case-prioritisation
-  model. The first two steps call the current local ML scripts; later steps
-  package governance artifacts for model registry review.
-experiment_name: azure-council-case-priority
+  Azure ML pipeline for the Service Priority AI model. It generates synthetic
+  data, trains the model, evaluates deployment gates, and packages model
+  registry metadata for review.
+experiment_name: service-priority-ai
 
 settings:
   default_compute: azureml:cpu-cluster
@@ -27,19 +27,9 @@ outputs:
 jobs:
   generate_synthetic_data:
     type: command
-    display_name: Generate synthetic council case data
+    display_name: Generate synthetic service request data
     code: ../ml
-    environment:
-      image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu22.04:latest
-      conda_file:
-        channels:
-          - conda-forge
-        dependencies:
-          - python=3.11
-          - pip
-          - pip:
-              - pandas>=2.2,<3
-              - numpy>=1.26,<3
+    environment: azureml:service-priority-training:1
     command: |
       python generate_data.py
       mkdir -p ${{outputs.dataset}}
@@ -52,19 +42,7 @@ jobs:
     type: command
     display_name: Train case priority classifier
     code: ../ml
-    environment:
-      image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu22.04:latest
-      conda_file:
-        channels:
-          - conda-forge
-        dependencies:
-          - python=3.11
-          - pip
-          - pip:
-              - pandas>=2.2,<3
-              - numpy>=1.26,<3
-              - scikit-learn>=1.4,<2
-              - joblib>=1.3,<2
+    environment: azureml:service-priority-training:1
     inputs:
       dataset: ${{parent.jobs.generate_synthetic_data.outputs.dataset}}
     outputs:
@@ -84,73 +62,36 @@ jobs:
     type: command
     display_name: Evaluate quality, fairness, and deployment gates
     code: ../ml
-    environment:
-      image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu22.04:latest
-      conda_file:
-        channels:
-          - conda-forge
-        dependencies:
-          - python=3.11
+    environment: azureml:service-priority-training:1
     inputs:
-      metrics: ${{parent.jobs.train_model.outputs.metrics}}
+      dataset: ${{parent.jobs.generate_synthetic_data.outputs.dataset}}
       model_artifacts: ${{parent.jobs.train_model.outputs.model_artifacts}}
     outputs:
       report: ${{parent.outputs.evaluation_report}}
       model_card: ${{parent.outputs.model_card}}
     command: |
-      python - <<'PY'
-      from pathlib import Path
-      import json
-      metrics_dir = Path("${{inputs.metrics}}")
-      report_dir = Path("${{outputs.report}}")
-      model_card_path = Path("${{outputs.model_card}}")
-      report_dir.mkdir(parents=True, exist_ok=True)
-      model_card_path.parent.mkdir(parents=True, exist_ok=True)
+      mkdir -p data artifacts
+      cp ${{inputs.dataset}}/synthetic_cases.csv data/synthetic_cases.csv
+      cp -r ${{inputs.model_artifacts}}/* artifacts/
+      python evaluate_model.py
+      mkdir -p ${{outputs.report}}
+      cp artifacts/evaluation.json ${{outputs.report}}/evaluation.json
+      cp artifacts/gate_summary.json ${{outputs.report}}/gate_summary.json
+      cp artifacts/registry_tags.json ${{outputs.report}}/registry_tags.json
+      cat > ${{outputs.model_card}} <<'EOF'
+      # Service Priority AI Model Card
 
-      evaluation = json.loads((metrics_dir / "evaluation.json").read_text(encoding="utf-8"))
-      metadata = json.loads((metrics_dir / "model_metadata.json").read_text(encoding="utf-8"))
-      high_recall_floor = float("${{parent.inputs.high_priority_recall_floor}}")
-      fairness_gap_warning = float("${{parent.inputs.fairness_gap_warning}}")
-      high_recall = float(evaluation.get("classification_report", {}).get("high", {}).get("recall", 0.0))
-
-      gate_summary = {
-          "model_name": metadata.get("model_name"),
-          "model_version": metadata.get("model_version"),
-          "accuracy": evaluation.get("accuracy"),
-          "high_priority_recall": high_recall,
-          "high_priority_recall_floor": high_recall_floor,
-          "high_priority_recall_gate": "pass" if high_recall >= high_recall_floor else "review",
-          "fairness_gap_warning": fairness_gap_warning,
-          "fairness_status": "not_available_until_slice_metrics_are_implemented",
-          "human_review_required": True,
-          "data": "synthetic",
-      }
-      (report_dir / "gate_summary.json").write_text(json.dumps(gate_summary, indent=2), encoding="utf-8")
-      (report_dir / "evaluation.json").write_text(json.dumps(evaluation, indent=2), encoding="utf-8")
-      model_card_path.write_text(
-          "# Azure Council Case Priority Model Card\n\n"
-          f"- Model: {metadata.get('model_name')}\n"
-          f"- Version: {metadata.get('model_version')}\n"
-          f"- Accuracy: {evaluation.get('accuracy')}\n"
-          f"- High priority recall: {high_recall}\n"
-          "- Intended use: advisory prioritisation for fictional council cases with human review.\n"
-          "- Limitations: synthetic data, baseline model, fairness slice metrics pending.\n"
-          "- Not for: automated denial, eligibility decisions, or live resident services without governance approval.\n",
-          encoding="utf-8",
-      )
-      PY
+      This model is a synthetic-data demonstration for human-reviewed service
+      request prioritisation. Review `gate_summary.json`, `evaluation.json`,
+      Responsible AI dashboard outputs, and project governance docs before any
+      deployment beyond a demo workspace.
+      EOF
 
   prepare_registry_candidate:
     type: command
     display_name: Prepare model registry candidate metadata
     code: ../ml
-    environment:
-      image: mcr.microsoft.com/azureml/openmpi4.1.0-ubuntu22.04:latest
-      conda_file:
-        channels:
-          - conda-forge
-        dependencies:
-          - python=3.11
+    environment: azureml:service-priority-training:1
     inputs:
       model_artifacts: ${{parent.jobs.train_model.outputs.model_artifacts}}
       report: ${{parent.jobs.evaluate_model.outputs.report}}
@@ -166,8 +107,8 @@ jobs:
       output_dir.mkdir(parents=True, exist_ok=True)
 
       tags = {
-          "project": "azure-council",
-          "use_case": "case-prioritisation",
+          "project": "service-priority-ai",
+          "use_case": "service-request-prioritisation",
           "data": "synthetic",
           "model_framework": "scikit-learn",
           "model_format": "joblib",
@@ -177,10 +118,10 @@ jobs:
       (output_dir / "model-tags.json").write_text(json.dumps(tags, indent=2), encoding="utf-8")
       (output_dir / "register-model.sh").write_text(
           "az ml model create \\\n"
-          "  --name azure-council-case-priority \\\n"
+          "  --name service-priority-ai \\\n"
           "  --type custom_model \\\n"
           "  --path azureml://jobs/<job-name>/outputs/artifacts/paths/trained_model \\\n"
-          "  --tags project=azure-council data=synthetic human_review_required=true\n",
+          "  --tags project=service-priority-ai data=synthetic human_review_required=true\n",
           encoding="utf-8",
       )
       PY

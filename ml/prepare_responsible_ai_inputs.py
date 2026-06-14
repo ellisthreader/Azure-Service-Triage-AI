@@ -28,10 +28,21 @@ def main() -> None:
     metadata = {
         "target_column": TARGET,
         "task_type": "classification",
-        "categorical_features": ["service_type", "vulnerability_flag", "deprivation_band", "channel"],
-        "numeric_features": ["days_open", "previous_contacts"],
+        "categorical_features": [
+            "service_type",
+            "service_subtype",
+            "district",
+            "source_system",
+            "out_of_hours",
+            "accessibility_need",
+            "duplicate_signal",
+            "vulnerability_flag",
+            "deprivation_band",
+            "channel",
+        ],
+        "numeric_features": ["month", "sla_hours", "days_open", "previous_contacts"],
         "text_feature": "urgency_text",
-        "cohort_candidates": ["vulnerability_flag", "deprivation_band", "service_type"],
+        "cohort_candidates": ["vulnerability_flag", "deprivation_band", "service_type", "district", "channel"],
     }
     (OUTPUT_DIR / "responsible_ai_input_metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
     print(f"Wrote Responsible AI input files to {OUTPUT_DIR}")

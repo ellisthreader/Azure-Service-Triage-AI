@@ -11,6 +11,14 @@ Schema version: `council_case_priority.v1`
 | Field | Type | Required | Allowed values / range | Model use |
 | --- | --- | --- | --- | --- |
 | `service_type` | string | yes | `housing`, `adult_social_care`, `highways`, `waste`, `benefits`, `council_tax`, `children_services` | Categorical feature |
+| `service_subtype` | string | no | controlled synthetic service pathway such as `no_heating_or_hot_water`, `pothole_or_carriageway`, or `safeguarding_child` | Categorical feature |
+| `district` | string | no | Essex district name used at aggregate level only | Categorical feature for monitoring and modelling |
+| `month` | integer | no | `1` to `12` | Numeric seasonal feature |
+| `source_system` | string | no | `web_form`, `contact_centre`, `shared_mailbox`, `teams_referral`, `case_portal` | Categorical feature |
+| `sla_hours` | integer | no | `1` to `8760` | Numeric operational feature |
+| `out_of_hours` | boolean | no | `true` or `false` | Binary categorical feature |
+| `accessibility_need` | boolean | no | `true` or `false` | Binary categorical feature |
+| `duplicate_signal` | boolean | no | `true` or `false` | Binary categorical feature |
 | `days_open` | integer | yes | `0` to `365` | Numeric feature |
 | `previous_contacts` | integer | yes | `0` to `50` | Numeric feature |
 | `vulnerability_flag` | boolean | yes | `true` or `false` | Binary categorical feature |
@@ -19,8 +27,8 @@ Schema version: `council_case_priority.v1`
 | `urgency_text` | string | yes | `3` to `800` characters after trimming | Text feature |
 
 The API may accept non-model metadata such as `case_id` or `submitted_at` for
-logging, but those fields must not change the prediction unless they are added
-to this contract.
+logging. Optional operational model fields use safe defaults when absent so
+older demo requests remain compatible.
 
 ## Target Label
 
@@ -39,10 +47,11 @@ Expected transformations:
 
 - Trim `urgency_text`; reject text below the minimum length after trimming.
 - Lowercase text inside the vectorizer or preprocessing pipeline.
-- Encode `service_type`, `vulnerability_flag`, and
-  `deprivation_band`.
+- Encode `service_type`, `service_subtype`, `district`, `source_system`,
+  `vulnerability_flag`, and `deprivation_band`.
 - Encode `channel`.
-- Pass `days_open` and `previous_contacts` as numeric features.
+- Pass `month`, `sla_hours`, `days_open`, and `previous_contacts` as numeric
+  features.
 - Keep training and inference transformations inside the saved scikit-learn
   pipeline to avoid API/training skew.
 
@@ -93,6 +102,9 @@ signals, for example: "vulnerability flag present", "case is long-running", or
 The following fields should be logged for aggregate monitoring:
 
 - `service_type`
+- `service_subtype`
+- `district`
+- `source_system`
 - `vulnerability_flag`
 - `deprivation_band`
 - `channel`

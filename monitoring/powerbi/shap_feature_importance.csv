@@ -1,31 +1,31 @@
 class,rank,feature,mean_absolute_shap
-high,1,previous contacts,1.002909
-high,2,days open,0.839001
-high,3,vulnerability flag True,0.820639
-high,4,vulnerability flag False,0.819635
-high,5,service type children services,0.75642
-high,6,channel web,0.476766
-high,7,service type adult social care,0.431607
-high,8,deprivation band high,0.372782
-high,9,service type waste,0.294295
-high,10,channel phone,0.250627
-low,1,previous contacts,1.011445
-low,2,days open,0.835607
-low,3,vulnerability flag True,0.828387
-low,4,vulnerability flag False,0.826805
-low,5,service type children services,0.813823
-low,6,channel web,0.484281
-low,7,service type adult social care,0.412243
-low,8,deprivation band high,0.404237
-low,9,channel phone,0.355624
-low,10,deprivation band medium,0.300968
-medium,1,channel phone,0.104997
-medium,2,deprivation band medium,0.066651
-medium,3,service type children services,0.057402
-medium,4,deprivation band high,0.031455
-medium,5,deprivation band low,0.022388
-medium,6,service type adult social care,0.019364
-medium,7,service type council tax,0.018937
-medium,8,channel in person,0.018545
-medium,9,previous contacts,0.008536
-medium,10,vulnerability flag True,0.007747
+high,1,vulnerability flag True,1.477805
+high,2,previous contacts,1.45907
+high,3,vulnerability flag False,1.296554
+high,4,sla hours,1.215978
+high,5,days open,1.119763
+high,6,service type children services,0.695759
+high,7,deprivation band high,0.66863
+high,8,service type adult social care,0.568888
+high,9,service type benefits,0.515873
+high,10,channel web,0.436418
+low,1,vulnerability flag True,1.698733
+low,2,previous contacts,1.582708
+low,3,vulnerability flag False,1.309959
+low,4,days open,1.185095
+low,5,sla hours,1.156539
+low,6,deprivation band high,0.775338
+low,7,service type children services,0.709164
+low,8,service type adult social care,0.593615
+low,9,service type benefits,0.508283
+low,10,service type housing,0.412223
+medium,1,vulnerability flag True,0.220927
+medium,2,previous contacts,0.123637
+medium,3,deprivation band high,0.106708
+medium,4,days open,0.065332
+medium,5,service subtype clinical or special waste,0.061966
+medium,6,source system contact centre,0.061153
+medium,7,channel phone,0.061153
+medium,8,sla hours,0.059438
+medium,9,deprivation band medium,0.054969
+medium,10,duplicate signal True,0.053323

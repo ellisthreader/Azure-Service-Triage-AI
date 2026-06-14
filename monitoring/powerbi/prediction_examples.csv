@@ -1,51 +1,51 @@
-case_id,service_type,days_open,previous_contacts,vulnerability_flag,deprivation_band,channel,urgency_text,priority,predicted_priority,confidence,human_review_required
-CASE-00001,council_tax,5,3,True,low,phone,repeat contact and resident is frustrated,medium,medium,0.5458,True
-CASE-00002,adult_social_care,7,0,False,low,phone,missed appointment causing inconvenience,medium,medium,0.6704,False
-CASE-00003,highways,7,0,False,low,web,unsafe road defect near school entrance,medium,medium,0.5651,True
-CASE-00004,waste,0,4,True,medium,email,payment query needs resolution this week,medium,medium,0.8341,False
-CASE-00005,highways,8,2,False,medium,web,minor issue reported online,low,low,0.9361,False
-CASE-00006,children_services,0,0,True,low,phone,safeguarding concern raised by family member,high,high,0.9234,True
-CASE-00007,council_tax,3,2,False,medium,web,request for update when possible,low,low,0.9814,False
-CASE-00008,children_services,3,0,False,high,email,general enquiry about service times,low,low,0.6467,True
-CASE-00009,benefits,2,1,False,high,phone,request for update when possible,low,low,0.6825,False
-CASE-00010,benefits,1,2,False,high,web,request for update when possible,low,low,0.9134,False
-CASE-00011,housing,6,4,False,medium,phone,routine form completion question,medium,medium,0.8383,False
-CASE-00012,benefits,6,0,False,medium,phone,repair delay affecting daily routine,low,low,0.9565,False
-CASE-00013,highways,0,1,True,high,web,no heating and vulnerable resident affected,high,high,0.7703,True
-CASE-00014,highways,7,2,False,low,web,general enquiry about service times,low,low,0.9442,False
-CASE-00015,waste,10,5,True,low,web,no heating and vulnerable resident affected,high,high,0.9953,True
-CASE-00016,children_services,0,3,True,high,web,repair delay affecting daily routine,high,high,0.9036,True
-CASE-00017,benefits,0,1,False,low,web,unsafe road defect near school entrance,low,low,0.7525,False
-CASE-00018,benefits,3,1,False,low,web,missed appointment causing inconvenience,low,low,0.9894,False
-CASE-00019,adult_social_care,2,0,True,low,phone,payment query needs resolution this week,medium,medium,0.7797,False
-CASE-00020,waste,9,0,False,low,web,routine form completion question,low,low,0.9774,False
-CASE-00021,housing,8,6,False,low,email,request for update when possible,medium,medium,0.8566,False
-CASE-00022,adult_social_care,7,1,False,low,email,general enquiry about service times,low,low,0.7148,False
-CASE-00023,housing,7,4,False,low,web,routine form completion question,medium,medium,0.592,True
-CASE-00024,highways,8,3,False,low,phone,payment query needs resolution this week,medium,medium,0.7153,False
-CASE-00025,highways,4,0,True,low,web,missed appointment causing inconvenience,low,medium,0.5489,True
-CASE-00026,children_services,3,2,True,medium,web,request for update when possible,medium,medium,0.5626,True
-CASE-00027,housing,0,1,False,high,web,missed appointment causing inconvenience,low,low,0.8924,False
-CASE-00028,adult_social_care,2,1,False,low,email,routine form completion question,low,low,0.8721,False
-CASE-00029,benefits,5,0,False,high,email,unsafe road defect near school entrance,medium,medium,0.7459,False
-CASE-00030,waste,8,3,False,medium,in_person,repeat contact and resident is frustrated,medium,low,0.585,True
-CASE-00031,benefits,6,3,False,low,web,repair delay affecting daily routine,low,low,0.9245,False
-CASE-00032,adult_social_care,4,1,False,medium,web,repeat contact and resident is frustrated,low,low,0.8759,False
-CASE-00033,waste,3,0,False,high,web,routine form completion question,low,low,0.9766,False
-CASE-00034,housing,6,4,True,high,phone,safeguarding concern raised by family member,high,high,0.9993,True
-CASE-00035,housing,7,4,False,high,web,general enquiry about service times,medium,medium,0.7855,False
-CASE-00036,benefits,0,1,False,medium,web,safeguarding concern raised by family member,low,low,0.704,False
-CASE-00037,children_services,8,1,True,high,web,missed appointment causing inconvenience,high,high,0.8139,True
-CASE-00038,children_services,13,1,False,low,phone,routine form completion question,medium,medium,0.8773,False
-CASE-00039,children_services,7,1,False,low,email,unsafe road defect near school entrance,medium,medium,0.5751,True
-CASE-00040,benefits,5,6,False,medium,email,minor issue reported online,low,low,0.6065,True
-CASE-00041,highways,1,2,True,medium,in_person,request for update when possible,medium,medium,0.7275,False
-CASE-00042,council_tax,10,2,False,high,phone,safeguarding concern raised by family member,high,high,0.652,True
-CASE-00043,housing,0,5,False,low,email,payment query needs resolution this week,low,low,0.5816,True
-CASE-00044,council_tax,0,0,False,medium,email,missed appointment causing inconvenience,low,low,0.9985,False
-CASE-00045,highways,4,4,False,high,phone,routine form completion question,medium,medium,0.8671,False
-CASE-00046,adult_social_care,7,3,False,high,phone,repair delay affecting daily routine,high,high,0.6836,True
-CASE-00047,council_tax,7,0,False,low,email,general enquiry about service times,low,low,0.9918,False
-CASE-00048,waste,4,3,False,medium,email,payment query needs resolution this week,low,low,0.9339,False
-CASE-00049,adult_social_care,11,3,True,high,email,routine form completion question,high,high,0.9849,True
-CASE-00050,children_services,0,0,True,medium,phone,risk of homelessness within days,high,high,0.9479,True
+case_id,service_type,service_subtype,district,month,source_system,sla_hours,out_of_hours,accessibility_need,duplicate_signal,days_open,previous_contacts,vulnerability_flag,deprivation_band,channel,urgency_text,priority,officer_override_simulated,override_reason_simulated,data_classification,predicted_priority,confidence,human_review_required
+CASE-000001,benefits,housing_benefit_query,Castle Point,10,contact_centre,120,False,False,False,9,1,False,medium,phone,resident in Castle Point reports request for update,low,False,,synthetic_demo,low,0.8956,False
+CASE-000002,highways,permit_or_roadworks,Maldon,5,web_form,336,False,False,False,7,0,False,medium,web,minor pothole report; previous contact history needs review,low,False,,synthetic_demo,low,0.9999,False
+CASE-000003,highways,traffic_signal_fault,Rochford,11,web_form,8,False,True,False,11,1,True,low,web,street light out on footpath; previous contact history needs review; resident asks for reasonable adjustment,high,False,,synthetic_demo,high,0.9516,True
+CASE-000004,housing,routine_repair_update,Colchester,6,case_portal,168,False,False,False,9,0,False,medium,web,routine repair update case from case portal,low,False,,synthetic_demo,low,0.9386,False
+CASE-000005,waste,garden_waste,Epping Forest,2,contact_centre,168,False,False,True,2,2,False,medium,phone,garden waste case from contact centre; linked case may exist,low,False,,synthetic_demo,low,0.7728,False
+CASE-000006,benefits,discretionary_payment,Colchester,4,contact_centre,120,False,False,False,4,0,False,medium,phone,appeal deadline approaching; previous contact history needs review; resident asks for reasonable adjustment,low,False,,synthetic_demo,low,0.9955,False
+CASE-000007,children_services,early_help,Colchester,12,case_portal,48,False,False,False,4,0,False,medium,in_person,family needs early help; previous contact history needs review; linked case may exist,low,False,,synthetic_demo,medium,0.5057,True
+CASE-000008,council_tax,bill_query,Brentwood,1,contact_centre,48,True,False,False,1,3,False,low,phone,cannot afford payment; previous contact history needs review,medium,False,,synthetic_demo,medium,0.898,False
+CASE-000009,council_tax,move_in_or_move_out,Chelmsford,5,shared_mailbox,120,False,False,False,10,0,False,medium,email,move in or move out case from shared mailbox,low,False,,synthetic_demo,low,0.9914,False
+CASE-000010,adult_social_care,carer_support,Brentwood,12,contact_centre,168,False,False,True,7,4,False,medium,phone,assessment overdue; officer should check supporting evidence,medium,True,service_backlog_context,synthetic_demo,medium,0.9323,False
+CASE-000011,highways,permit_or_roadworks,Brentwood,6,web_form,48,False,False,True,11,3,False,low,web,permit or roadworks case from web form,medium,False,,synthetic_demo,medium,0.9478,False
+CASE-000012,adult_social_care,blue_badge_or_mobility,Basildon,12,contact_centre,336,False,False,False,3,1,False,high,phone,resident in Basildon reports blue badge update,medium,False,,synthetic_demo,medium,0.5608,True
+CASE-000013,housing,routine_repair_update,Colchester,2,case_portal,48,False,False,False,13,1,True,medium,in_person,no heating; officer should check supporting evidence,high,False,,synthetic_demo,high,0.9992,True
+CASE-000014,highways,flooding_or_drainage,Braintree,6,shared_mailbox,168,False,False,False,4,1,False,medium,email,resident in Braintree reports roadworks update; linked case may exist,low,False,,synthetic_demo,low,0.9989,False
+CASE-000015,adult_social_care,safeguarding_adult,Chelmsford,4,teams_referral,8,False,False,False,7,2,False,medium,in_person,safeguarding adult case from teams referral; linked case may exist,high,False,,synthetic_demo,high,0.9936,True
+CASE-000016,council_tax,single_person_discount,Colchester,11,web_form,168,False,False,False,4,0,False,medium,web,moving home notification; previous contact history needs review; resident asks for reasonable adjustment,low,False,,synthetic_demo,low,0.9998,False
+CASE-000017,housing,neighbourhood_nuisance,Harlow,1,web_form,24,False,False,True,22,2,False,high,web,resident in Harlow reports homelessness,high,False,,synthetic_demo,high,0.9991,True
+CASE-000018,council_tax,direct_debit,Brentwood,10,web_form,8,False,False,False,2,5,False,low,web,resident in Brentwood reports bailiff letter received; linked case may exist,medium,False,,synthetic_demo,medium,0.572,True
+CASE-000019,children_services,send_support,Castle Point,3,web_form,4,False,False,False,3,2,True,medium,web,safeguarding concern for child; previous contact history needs review; resident asks for reasonable adjustment,high,False,,synthetic_demo,high,0.9978,True
+CASE-000020,council_tax,discount_or_exemption,Epping Forest,5,contact_centre,72,False,False,False,2,0,False,medium,phone,discount evidence supplied; officer should check supporting evidence; resident asks for reasonable adjustment,low,False,,synthetic_demo,low,0.9964,False
+CASE-000021,children_services,family_support,Castle Point,5,contact_centre,120,False,False,False,0,4,True,medium,phone,fostering information request; previous contact history needs review,medium,False,,synthetic_demo,high,0.5828,True
+CASE-000022,benefits,evidence_request,Maldon,10,contact_centre,72,False,False,False,0,2,False,medium,phone,appeal deadline approaching; previous contact history needs review,low,False,,synthetic_demo,low,0.9743,False
+CASE-000023,benefits,change_of_circumstances,Chelmsford,7,contact_centre,120,False,False,False,3,0,False,medium,phone,resident in Chelmsford reports change of circumstances form; resident asks for reasonable adjustment,low,False,,synthetic_demo,low,0.9985,False
+CASE-000024,adult_social_care,equipment_or_adaptation,Chelmsford,9,case_portal,48,False,False,False,0,4,False,medium,in_person,hospital discharge risk; officer should check supporting evidence,medium,False,,synthetic_demo,medium,0.9193,False
+CASE-000025,adult_social_care,carer_support,Maldon,8,contact_centre,4,False,False,False,4,2,True,medium,phone,hospital discharge risk; officer should check supporting evidence,high,False,,synthetic_demo,high,0.9626,True
+CASE-000026,children_services,safeguarding_child,Tendring,6,case_portal,8,False,False,False,5,3,True,high,in_person,resident in Tendring reports risk of harm,high,False,,synthetic_demo,high,1.0,True
+CASE-000027,council_tax,single_person_discount,Tendring,7,shared_mailbox,120,False,False,False,0,0,False,high,email,discount evidence supplied; previous contact history needs review,low,False,,synthetic_demo,low,0.9987,False
+CASE-000028,council_tax,single_person_discount,Brentwood,1,contact_centre,120,False,False,False,8,1,False,medium,phone,resident in Brentwood reports direct debit question; linked case may exist,low,False,,synthetic_demo,low,0.9493,False
+CASE-000029,benefits,evidence_request,Brentwood,10,web_form,240,False,False,True,8,2,False,low,web,request for update; officer should check supporting evidence,low,False,,synthetic_demo,low,0.9306,False
+CASE-000030,council_tax,single_person_discount,Epping Forest,5,web_form,120,False,False,False,5,2,False,low,web,single person discount update; previous contact history needs review,low,False,,synthetic_demo,low,0.9941,False
+CASE-000031,council_tax,direct_debit,Castle Point,7,contact_centre,168,False,False,False,9,1,False,medium,phone,payment plan needed; officer should check supporting evidence,low,False,,synthetic_demo,low,0.9212,False
+CASE-000032,highways,street_lighting,Chelmsford,4,contact_centre,168,False,False,False,0,2,False,medium,phone,resident in Chelmsford reports street light out on footpath,low,False,,synthetic_demo,low,0.9935,False
+CASE-000033,housing,damp_mould_or_disrepair,Harlow,8,contact_centre,168,False,False,False,3,2,False,high,phone,resident in Harlow reports routine repair question,low,False,,synthetic_demo,medium,0.8861,False
+CASE-000034,adult_social_care,equipment_or_adaptation,Castle Point,10,contact_centre,48,False,False,False,12,2,False,medium,phone,safeguarding concern; previous contact history needs review; resident asks for reasonable adjustment; linked case may exist,high,False,,synthetic_demo,high,0.9175,True
+CASE-000035,council_tax,bill_query,Basildon,6,case_portal,48,False,False,False,10,1,False,high,web,resident in Basildon reports summons received; resident asks for reasonable adjustment,medium,False,,synthetic_demo,low,0.5312,True
+CASE-000036,council_tax,recovery_or_summons,Maldon,7,contact_centre,48,False,False,False,8,8,False,medium,phone,resident in Maldon reports summons received,medium,False,,synthetic_demo,high,0.7891,True
+CASE-000037,housing,no_heating_or_hot_water,Chelmsford,4,web_form,240,False,False,False,15,1,False,medium,web,no heating or hot water case from web form,high,False,,synthetic_demo,high,0.929,True
+CASE-000038,adult_social_care,blue_badge_or_mobility,Harlow,4,web_form,4,False,False,False,3,3,False,high,web,care package failing; officer should check supporting evidence,high,False,,synthetic_demo,high,0.7841,True
+CASE-000039,benefits,signposting_to_district,Uttlesford,4,case_portal,168,False,False,False,8,5,False,low,web,payment delayed; officer should check supporting evidence,low,False,,synthetic_demo,low,0.7185,False
+CASE-000040,highways,footway_defect,Castle Point,10,web_form,168,False,False,False,12,4,False,medium,web,request for inspection update; officer should check supporting evidence,low,False,,synthetic_demo,medium,0.601,True
+CASE-000041,benefits,change_of_circumstances,Braintree,12,web_form,4,False,False,True,10,2,True,medium,web,change of circumstances case from web form; linked case may exist,high,False,,synthetic_demo,medium,0.5596,True
+CASE-000042,highways,street_lighting,Colchester,2,web_form,168,False,False,False,13,0,False,medium,web,street light out on footpath; previous contact history needs review,low,False,,synthetic_demo,low,0.9929,False
+CASE-000043,children_services,send_support,Braintree,5,contact_centre,168,False,False,False,6,0,False,medium,phone,send support case from contact centre,low,False,,synthetic_demo,low,0.6561,False
+CASE-000044,children_services,family_support,Epping Forest,12,case_portal,120,False,False,False,10,0,True,medium,web,resident in Epping Forest reports general family support question,medium,False,,synthetic_demo,medium,0.9505,False
+CASE-000045,children_services,school_transport,Harlow,11,shared_mailbox,120,False,False,False,3,0,False,high,email,school transport case from shared mailbox,low,False,,synthetic_demo,low,0.7625,False
+CASE-000046,housing,neighbourhood_nuisance,Maldon,2,web_form,504,False,False,False,0,1,True,medium,web,resident in Maldon reports routine repair question; resident asks for reasonable adjustment; linked case may exist,medium,False,,synthetic_demo,low,0.6935,False
+CASE-000047,children_services,safeguarding_child,Chelmsford,4,case_portal,24,False,False,False,1,0,False,medium,web,school transport issue; officer should check supporting evidence,medium,False,,synthetic_demo,medium,0.8336,False
+CASE-000048,children_services,safeguarding_child,Chelmsford,4,shared_mailbox,4,False,False,False,7,0,True,medium,email,risk of harm; previous contact history needs review,high,False,,synthetic_demo,high,1.0,True
+CASE-000049,adult_social_care,equipment_or_adaptation,Maldon,2,web_form,8,False,False,False,14,2,True,medium,web,safeguarding concern; previous contact history needs review,high,False,,synthetic_demo,high,0.9999,True
+CASE-000050,waste,garden_waste,Harlow,2,shared_mailbox,48,False,False,False,10,5,False,high,email,garden waste case from shared mailbox; linked case may exist,medium,False,,synthetic_demo,medium,0.9478,False

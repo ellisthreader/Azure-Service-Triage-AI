@@ -1,12 +1,19 @@
-import { BarChart3, Database, FileCheck2, GitBranch, Layers, Server, ShieldCheck, CheckCircle2 } from "lucide-react";
-import type { DashboardSummary } from "../api";
+import { BarChart3, Clock3, Database, FileCheck2, GitBranch, Layers, Server, ShieldCheck, CheckCircle2 } from "lucide-react";
+import type { DashboardSummary, Prediction, ServiceType } from "../api";
 import { avg, clean, pct } from "../api";
 import { BarRow, Badge, Metric, PanelTitle } from "../components/primitives";
+
+type RecentPrediction = {
+  service: ServiceType;
+  priority: Prediction["priority"];
+  confidence: number;
+  time: string;
+};
 
 export function PipelinePanel({ pipeline }: { pipeline: DashboardSummary["pipeline"] }) {
   return (
     <section className="panel col-span-2">
-      <PanelTitle icon={<GitBranch size={16} />} title="Azure MLOps pipeline" />
+      <PanelTitle icon={<GitBranch size={16} />} title="Azure ML delivery pipeline" />
       <div className="timeline">
         {pipeline.map((item) => (
           <article key={item.step}>
@@ -26,7 +33,7 @@ export function PipelinePanel({ pipeline }: { pipeline: DashboardSummary["pipeli
 export function AzureStatusPanel({ rows }: { rows: DashboardSummary["azure_status"] }) {
   return (
     <section className="panel col-span-2">
-      <PanelTitle icon={<Server size={16} />} title="Azure deployment status" />
+      <PanelTitle icon={<Server size={16} />} title="Azure and 365 integration status" />
       <div className="azure-status-grid">
         {rows.map((row) => (
           <article key={row.item} className={["azure-status-card", row.status].join(" ")}>
@@ -45,7 +52,7 @@ export function AzureStatusPanel({ rows }: { rows: DashboardSummary["azure_statu
 export function RegistryPanel({ registry }: { registry: DashboardSummary["registry"] }) {
   return (
     <section className="panel col-span-2">
-      <PanelTitle icon={<Server size={16} />} title="Model registry & deployment" />
+      <PanelTitle icon={<Server size={16} />} title="Model registry and service deployment" />
       <div className="table-wrap">
         <table>
           <thead>
@@ -76,11 +83,47 @@ export function RegistryPanel({ registry }: { registry: DashboardSummary["regist
   );
 }
 
+export function RecentPredictionsPanel({ rows }: { rows: RecentPrediction[] }) {
+  return (
+    <section className="panel col-span-2">
+      <PanelTitle icon={<Clock3 size={16} />} title="Recent officer scoring activity" action={rows.length ? "Current session" : "Waiting for first score"} />
+      {rows.length === 0 ? (
+        <div className="empty-compact">
+          No cases have been scored in this browser session yet. Submit a synthetic 365 case to populate the officer activity log.
+        </div>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Service</th>
+                <th>Recommendation</th>
+                <th className="num">Confidence</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => (
+                <tr key={`${row.time}-${index}`}>
+                  <td className="tabular">{row.time}</td>
+                  <td>{clean(row.service)}</td>
+                  <td><Badge label={row.priority} /></td>
+                  <td className="tabular">{pct(row.confidence)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function MonitoringPanel({ trend }: { trend: DashboardSummary["monitoring_trend"] }) {
   const maxVolume = Math.max(...trend.map((item) => item.volume), 1);
   return (
     <section className="panel col-span-2">
-      <PanelTitle icon={<BarChart3 size={16} />} title="Monitoring signals" action="Daily volume" />
+      <PanelTitle icon={<BarChart3 size={16} />} title="Power BI monitoring signals" action="Daily volume" />
       <div className="mini-chart">
         {trend.map((item) => (
           <div key={item.label}>
@@ -101,7 +144,7 @@ export function MonitoringPanel({ trend }: { trend: DashboardSummary["monitoring
 export function FairnessPanel({ rows }: { rows: DashboardSummary["fairness"] }) {
   return (
     <section className="panel">
-      <PanelTitle icon={<ShieldCheck size={16} />} title="Fairness review" />
+      <PanelTitle icon={<ShieldCheck size={16} />} title="Fairness and equality review" />
       <div className="bar-list">
         {rows.slice(0, 6).map((row) => (
           <BarRow
@@ -121,7 +164,7 @@ export function ShapPanel({ rows }: { rows: DashboardSummary["shap_top_features"
   const maxValue = Math.max(...rows.map((item) => item.mean_absolute_shap), 1);
   return (
     <section className="panel">
-      <PanelTitle icon={<Layers size={16} />} title="SHAP feature importance" />
+      <PanelTitle icon={<Layers size={16} />} title="Explanation factors" />
       <div className="bar-list">
         {rows.slice(0, 6).map((row) => (
           <BarRow
@@ -140,7 +183,7 @@ export function ShapPanel({ rows }: { rows: DashboardSummary["shap_top_features"
 export function BatchPanel({ rows }: { rows: DashboardSummary["batch_preview"] }) {
   return (
     <section className="panel col-span-2">
-      <PanelTitle icon={<Database size={16} />} title="Batch scoring preview" />
+      <PanelTitle icon={<Database size={16} />} title="SharePoint CSV batch scoring preview" />
       <div className="table-wrap">
         <table>
           <thead>
@@ -172,7 +215,7 @@ export function BatchPanel({ rows }: { rows: DashboardSummary["batch_preview"] }
 export function GovernancePanel({ rows }: { rows: DashboardSummary["governance"] }) {
   return (
     <section className="panel col-span-2">
-      <PanelTitle icon={<FileCheck2 size={16} />} title="Responsible AI governance" />
+      <PanelTitle icon={<FileCheck2 size={16} />} title="Responsible AI and information governance" />
       <div className="governance-grid">
         {rows.map((row) => (
           <article key={row.item}>

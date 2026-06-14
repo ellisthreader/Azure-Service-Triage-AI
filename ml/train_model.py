@@ -23,6 +23,14 @@ EVALUATION_PATH = ARTIFACT_DIR / "evaluation.json"
 
 FEATURES = [
     "service_type",
+    "service_subtype",
+    "district",
+    "month",
+    "source_system",
+    "sla_hours",
+    "out_of_hours",
+    "accessibility_need",
+    "duplicate_signal",
     "days_open",
     "previous_contacts",
     "vulnerability_flag",
@@ -34,8 +42,19 @@ TARGET = "priority"
 
 
 def build_pipeline() -> Pipeline:
-    categorical_features = ["service_type", "vulnerability_flag", "deprivation_band", "channel"]
-    numeric_features = ["days_open", "previous_contacts"]
+    categorical_features = [
+        "service_type",
+        "service_subtype",
+        "district",
+        "source_system",
+        "out_of_hours",
+        "accessibility_need",
+        "duplicate_signal",
+        "vulnerability_flag",
+        "deprivation_band",
+        "channel",
+    ]
+    numeric_features = ["month", "sla_hours", "days_open", "previous_contacts"]
 
     try:
         encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
