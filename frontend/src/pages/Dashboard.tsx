@@ -7,18 +7,22 @@ import {
   FileText,
   FolderOpen,
   Home,
+  LogIn,
+  LogOut,
   Mail,
   MessageSquareText,
   ShieldCheck,
+  UserPlus,
 } from "lucide-react";
-import type { AuditSummary, CaseRecord, CaseRequest, DecisionReceipt, Health, Prediction } from "../api";
+import type { AuditSummary, CaseRecord, CaseRequest, Health, Prediction, StaffMember } from "../api";
 import {
+  SYNTHETIC_STAFF,
   clean,
   fallbackCaseQueue,
   fetchAuditSummary,
   fetchCaseQueue,
   fetchHealth,
-  postDecision,
+  postAssignToSelf,
 } from "../api";
 import { TriageForm } from "../dashboard/TriageForm";
 
@@ -26,7 +30,7 @@ type DashboardTab = "overview" | "triage";
 
 const TABS: Array<{ id: DashboardTab; label: string; icon: ReactNode; helper: string }> = [
   { id: "overview", label: "Today", icon: <Home size={16} />, helper: "Priority list" },
-  { id: "triage", label: "Case details", icon: <ShieldCheck size={16} />, helper: "Review and decide" },
+  { id: "triage", label: "Case details", icon: <ShieldCheck size={16} />, helper: "Review record" },
 ];
 
 type Props = {
@@ -36,18 +40,22 @@ type Props = {
   setPrediction: (p: Prediction | null) => void;
 };
 
-export function Dashboard({ caseInput, setCaseInput, prediction, setPrediction }: Props) {
-  const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
+const PROFILE_STORAGE_KEY = "service-priority-demo-profile";
+
+export function Dashboard({ setCaseInput, setPrediction }: Props) {
+  const [activeTab, setActiveTab] = useState<DashboardTab>("triage");
   const [caseQueue, setCaseQueue] = useState<CaseRecord[]>(fallbackCaseQueue);
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(fallbackCaseQueue[0]?.case_id ?? null);
   const [health, setHealth] = useState<Health | null>(null);
   const [auditSummary, setAuditSummary] = useState<AuditSummary | null>(null);
   const [decisionSaving, setDecisionSaving] = useState(false);
   const [decisionError, setDecisionError] = useState<string | null>(null);
-  const [decisionReceipt, setDecisionReceipt] = useState<DecisionReceipt | null>(null);
+  const [currentUser, setCurrentUser] = useState<StaffMember | null>(() => readSavedProfile());
 
   const activeLabel = TABS.find((tab) => tab.id === activeTab)?.label ?? "Today";
   const highQueueCount = caseQueue.filter((row) => row.risk === "high").length;
+  const unassignedCount = caseQueue.filter((row) => !row.assigned_to).length;
+  const activeStaffCount = new Set(caseQueue.map((row) => row.assigned_to?.id).filter(Boolean)).size;
 
   const changeTab = (tab: DashboardTab) => {
     setActiveTab(tab);
@@ -84,29 +92,37 @@ export function Dashboard({ caseInput, setCaseInput, prediction, setPrediction }
     setSelectedCaseId(row.case_id);
     setCaseInput(row.case_request);
     setPrediction(row.prediction ?? null);
-    setDecisionReceipt(null);
     setDecisionError(null);
     changeTab("triage");
   }
 
-  async function recordOfficerDecision(finalPriority: Prediction["priority"], overrideReason: string) {
-    if (!selectedCaseId || !prediction) return;
+  function signIn() {
+    setCurrentUser(SYNTHETIC_STAFF.me);
+    window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(SYNTHETIC_STAFF.me));
+    setDecisionError(null);
+  }
+
+  function signOut() {
+    setCurrentUser(null);
+    window.localStorage.removeItem(PROFILE_STORAGE_KEY);
+    setDecisionError(null);
+  }
+
+  async function assignSelectedToSelf() {
+    if (!selectedCaseId) return;
+    if (!currentUser) {
+      setDecisionError("Sign in with your profile before assigning a case.");
+      return;
+    }
     setDecisionSaving(true);
     setDecisionError(null);
     try {
-      const receipt = await postDecision(selectedCaseId, {
-        final_priority: finalPriority,
-        override_reason: overrideReason,
-        action_taken: "",
-        officer_id: "demo.officer",
-        case_request: caseInput,
-        prediction,
-      });
-      setDecisionReceipt(receipt);
-      const audit = await fetchAuditSummary();
-      setAuditSummary(audit);
+      const updated = await postAssignToSelf(selectedCaseId, currentUser);
+      setCaseQueue((rows) => rows.map((row) => (row.case_id === selectedCaseId ? updated : row)));
+      setCaseInput(updated.case_request);
+      setPrediction(updated.prediction ?? null);
     } catch (error) {
-      setDecisionError(error instanceof Error ? error.message : "The decision could not be recorded.");
+      setDecisionError(error instanceof Error ? error.message : "The case could not be assigned.");
     } finally {
       setDecisionSaving(false);
     }
@@ -141,10 +157,38 @@ export function Dashboard({ caseInput, setCaseInput, prediction, setPrediction }
           ))}
         </nav>
 
+        <div className="employee-profile-card">
+          {currentUser ? (
+            <>
+              <img src={currentUser.avatar_url} alt="" />
+              <div>
+                <span>Signed in</span>
+                <strong>{currentUser.name}</strong>
+                <small>{currentUser.role}</small>
+              </div>
+              <button type="button" aria-label="Sign out" onClick={signOut}>
+                <LogOut size={16} />
+              </button>
+            </>
+          ) : (
+            <>
+              <span className="unassigned-avatar"><LogIn size={16} /></span>
+              <div>
+                <span>Not signed in</span>
+                <strong>No profile active</strong>
+                <small>Sign in to assign cases to yourself</small>
+              </div>
+              <button type="button" aria-label="Sign in" onClick={signIn}>
+                <LogIn size={16} />
+              </button>
+            </>
+          )}
+        </div>
+
         <div className="employee-status-card">
           <span className={health ? "status-dot online" : "status-dot offline"} />
           <div>
-            <strong>{health ? "Case flags ready" : "Case flags unavailable"}</strong>
+            <strong>{health ? "Case data ready" : "Case data unavailable"}</strong>
             <small>Model {health?.model_version ?? "pending"}</small>
           </div>
         </div>
@@ -170,6 +214,17 @@ export function Dashboard({ caseInput, setCaseInput, prediction, setPrediction }
             <strong>{activeLabel}</strong>
           </div>
           <div className="employee-top-actions">
+            {currentUser ? (
+              <span className="employee-user-pill">
+                <img src={currentUser.avatar_url} alt="" />
+                <span>{currentUser.name}</span>
+              </span>
+            ) : (
+              <button type="button" className="employee-login-button" onClick={signIn}>
+                <LogIn size={16} />
+                Sign in
+              </button>
+            )}
             <span className={`employee-api ${health ? "online" : "offline"}`}>
               {health ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
               {health ? "Live" : "Offline"}
@@ -178,20 +233,6 @@ export function Dashboard({ caseInput, setCaseInput, prediction, setPrediction }
         </header>
 
         <div className="employee-content">
-          <section className="employee-hero employee-hero-compact">
-            <div>
-              <div className="eyebrow">Today</div>
-              <h1>Priority workspace</h1>
-              <p>
-                Review the cases most likely to need attention, then open the linked notes, handovers, and previous contacts inside this dashboard.
-              </p>
-            </div>
-            <button type="button" className="btn-primary employee-hero-action" onClick={() => selectedCaseId && changeTab("triage")}>
-              <ShieldCheck size={17} />
-              Review selected case
-            </button>
-          </section>
-
           <div className="dashboard-tabs mobile-dashboard-tabs" role="tablist" aria-label="Dashboard sections">
             {TABS.map((tab) => (
               <button
@@ -217,7 +258,7 @@ export function Dashboard({ caseInput, setCaseInput, prediction, setPrediction }
                       <h2>Today's priority list</h2>
                       <p>Sorted by urgency. Select a case to open the full record.</p>
                     </div>
-                    <span>{highQueueCount} high risk · {new Set(caseQueue.map((row) => row.assigned_to.id)).size} staff active</span>
+                    <span>{highQueueCount} high risk · {unassignedCount} unassigned · {activeStaffCount} staff active</span>
                   </div>
 
                   <div className="priority-rows">
@@ -242,11 +283,23 @@ export function Dashboard({ caseInput, setCaseInput, prediction, setPrediction }
                           </span>
                         </span>
                         <span className="priority-row-owner">
-                          <img src={row.assigned_to.avatar_url} alt="" />
-                          <span>
-                            <strong>{row.assigned_to.name}</strong>
-                            <small>{row.assigned_to.role}</small>
-                          </span>
+                          {row.assigned_to ? (
+                            <>
+                              <img src={row.assigned_to.avatar_url} alt="" />
+                              <span>
+                                <strong>{row.assigned_to.name}</strong>
+                                <small>{row.assigned_to.role}</small>
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <span className="unassigned-avatar"><UserPlus size={16} /></span>
+                              <span>
+                                <strong>Unassigned</strong>
+                                <small>Open case to assign to yourself</small>
+                              </span>
+                            </>
+                          )}
                         </span>
                         <span className="priority-row-sources" aria-label="Linked Microsoft 365 items">
                           <span><Mail size={14} /> {row.previous_contacts.length}</span>
@@ -274,15 +327,15 @@ export function Dashboard({ caseInput, setCaseInput, prediction, setPrediction }
               {decisionError && (
                 <div className="error-banner" role="alert">
                   <AlertCircle size={17} />
-                  <span>Decision failed: {decisionError}. Check the API audit endpoint, then try again.</span>
+                  <span>Assignment failed: {decisionError}. Check the API endpoint, then try again.</span>
                 </div>
               )}
               <TriageForm
                 caseRecord={caseQueue.find((row) => row.case_id === selectedCaseId) ?? null}
-                prediction={prediction}
-                onRecordDecision={recordOfficerDecision}
                 decisionSaving={decisionSaving}
-                decisionReceipt={decisionReceipt}
+                onAssignToSelf={assignSelectedToSelf}
+                currentUser={currentUser}
+                onSignIn={signIn}
               />
             </section>
           )}
@@ -291,4 +344,14 @@ export function Dashboard({ caseInput, setCaseInput, prediction, setPrediction }
       </main>
     </div>
   );
+}
+
+function readSavedProfile(): StaffMember | null {
+  try {
+    const saved = window.localStorage.getItem(PROFILE_STORAGE_KEY);
+    if (!saved) return null;
+    return JSON.parse(saved) as StaffMember;
+  } catch {
+    return null;
+  }
 }

@@ -117,7 +117,7 @@ class CaseRecord(BaseModel):
     household_context: str
     status: CaseStatus = "New"
     last_updated: str = ""
-    assigned_to: StaffMember
+    assigned_to: StaffMember | None = None
     activity: list[ActivityItem] = []
     evidence_items: list[EvidenceItem] = []
     case_notes: list[SourceItem] = []

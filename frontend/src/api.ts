@@ -57,7 +57,7 @@ export type CaseRecord = {
   household_context: string;
   status: "New" | "In review" | "Waiting update" | "In progress";
   last_updated: string;
-  assigned_to: StaffMember;
+  assigned_to: StaffMember | null;
   activity: ActivityItem[];
   evidence_items: { type: "photo" | "document" | "note"; title: string; detail: string; source: string; image_url?: string | null }[];
   case_notes: SourceItem[];
@@ -212,6 +212,14 @@ export const SERVICE_LABELS: Record<ServiceType, string> = {
 };
 
 export const SYNTHETIC_STAFF: Record<string, StaffMember> = {
+  me: {
+    id: "staff-demo-user",
+    name: "Alex Carter",
+    username: "alex.carter@essex.example",
+    role: "Senior case review officer",
+    team: "Today duty desk",
+    avatar_url: "/staff/demo-officer-profile.png",
+  },
   alice: {
     id: "staff-alice",
     name: "Alice Morgan",
@@ -243,6 +251,38 @@ export const SYNTHETIC_STAFF: Record<string, StaffMember> = {
     role: "Revenues officer",
     team: "Revenues",
     avatar_url: "/staff/rachel-hughes.png",
+  },
+  maya: {
+    id: "staff-maya",
+    name: "Maya Patel",
+    username: "maya.patel@essex.example",
+    role: "Benefits officer",
+    team: "Financial support",
+    avatar_url: "/staff/alice-morgan.png",
+  },
+  daniel: {
+    id: "staff-daniel",
+    name: "Daniel Reed",
+    username: "daniel.reed@essex.example",
+    role: "Waste services coordinator",
+    team: "Waste operations",
+    avatar_url: "/staff/tom-bennett.png",
+  },
+  nina: {
+    id: "staff-nina",
+    name: "Nina Scott",
+    username: "nina.scott@essex.example",
+    role: "Family support coordinator",
+    team: "Children & families",
+    avatar_url: "/staff/rachel-hughes.png",
+  },
+  owen: {
+    id: "staff-owen",
+    name: "Owen Clarke",
+    username: "owen.clarke@essex.example",
+    role: "Housing allocations officer",
+    team: "Housing options",
+    avatar_url: "/staff/samir-khan.png",
   },
 };
 
@@ -295,6 +335,16 @@ export async function postDecision(caseId: string, payload: DecisionPayload): Pr
   });
   if (!response.ok) throw new Error(`API returned ${response.status}`);
   return (await response.json()) as DecisionReceipt;
+}
+
+export async function postAssignToSelf(caseId: string, currentUser: StaffMember): Promise<CaseRecord> {
+  const response = await fetch(`${API_BASE}/cases/${caseId}/assign-to-self`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(currentUser),
+  });
+  if (!response.ok) throw new Error(`API returned ${response.status}`);
+  return (await response.json()) as CaseRecord;
 }
 
 export const fallbackCaseQueue: CaseRecord[] = [
@@ -589,6 +639,159 @@ export const fallbackCaseQueue: CaseRecord[] = [
       deprivation_band: "low",
       channel: "web",
       urgency_text: "Resident asks for update on council tax bill",
+    },
+  },
+  {
+    case_id: "ECC-365-1046",
+    title: "Unassigned",
+    service_label: "Benefits",
+    team: "Financial support",
+    source: "Outlook shared mailbox",
+    evidence: "Case portal income evidence",
+    handover: "Benefits duty inbox",
+    due: "Today 15:00",
+    risk: "high",
+    action: "Assign reviewer and check vulnerability context",
+    summary: "Benefit support enquiry with rent arrears wording and repeated contact.",
+    access_notes: "Assign an officer before contacting the resident. Check consent and evidence status in the case portal.",
+    household_context: "Vulnerability indicator present; affordability pressure mentioned in the contact notes.",
+    status: "New",
+    last_updated: "Today 11:32",
+    assigned_to: null,
+    activity: [
+      {
+        id: "act-1046-1",
+        action: "Mailbox item received",
+        detail: "Outlook shared mailbox item linked to benefits queue.",
+        time: "Today 11:32",
+        actor: SYNTHETIC_STAFF.maya,
+      },
+    ],
+    evidence_items: [
+      { type: "document", title: "Income evidence checklist", detail: "Case portal checklist shows two evidence items still outstanding.", source: "Case portal" },
+      { type: "note", title: "Benefits inbox handover", detail: "Shared mailbox note asks duty reviewer to check arrears risk.", source: "Outlook" },
+    ],
+    case_notes: [
+      {
+        id: "note-1046-outlook",
+        type: "case_note",
+        app: "Outlook",
+        title: "Benefits shared mailbox handover",
+        summary: "Email asks the duty team to review rent arrears wording today.",
+        body: "Shared mailbox note for demo: the resident describes rent arrears and asks for urgent benefit support. Assign a reviewer, check evidence status, and follow the service escalation route if hardship is confirmed.",
+        time: "Today 11:28",
+        owner: "Benefits shared mailbox",
+        external_url: "https://outlook.office.com/mail/",
+      },
+      {
+        id: "note-1046-caseportal",
+        type: "evidence",
+        app: "Case portal",
+        title: "Evidence checklist",
+        summary: "Case portal shows the claim evidence checklist and missing items.",
+        body: "Demo case portal note: income evidence and tenancy confirmation are pending. Officer should not make an eligibility decision from the AI priority flag.",
+        time: "Today 11:30",
+        owner: "Financial support",
+        external_url: "https://www.office.com/",
+      },
+    ],
+    previous_contacts: [
+      {
+        id: "contact-1046-outlook",
+        type: "previous_contact",
+        app: "Outlook",
+        title: "Earlier rent arrears email",
+        summary: "Earlier message mentioned arrears and a request for a call back.",
+        body: "Synthetic previous contact record: resident asked for a call back about arrears and evidence needed for benefit support.",
+        time: "Yesterday 15:44",
+        owner: "Benefits shared mailbox",
+        external_url: "https://outlook.office.com/mail/",
+      },
+    ],
+    case_request: {
+      ...defaultCase,
+      service_type: "benefits",
+      service_subtype: "rent_arrears_support",
+      district: "Tendring",
+      source_system: "shared_mailbox",
+      sla_hours: 24,
+      days_open: 3,
+      previous_contacts: 2,
+      vulnerability_flag: true,
+      deprivation_band: "high",
+      channel: "email",
+      urgency_text: "Rent arrears and urgent benefits support requested",
+    },
+  },
+  {
+    case_id: "ECC-365-1048",
+    title: "Unassigned",
+    service_label: "Family support",
+    team: "Children & families",
+    source: "Teams referral",
+    evidence: "Referral note",
+    handover: "MASH duty Teams handover",
+    due: "Within 4 hours",
+    risk: "high",
+    action: "Assign duty reviewer and check referral note",
+    summary: "Family support referral with safeguarding language and out-of-hours handover.",
+    access_notes: "Assign a duty reviewer before any outbound contact. Follow safeguarding triage policy.",
+    household_context: "Safeguarding/vulnerability context present in the referral note.",
+    status: "New",
+    last_updated: "Today 13:06",
+    assigned_to: null,
+    activity: [
+      {
+        id: "act-1048-1",
+        action: "Teams referral received",
+        detail: "Duty channel referral added to today's unassigned queue.",
+        time: "Today 13:06",
+        actor: SYNTHETIC_STAFF.nina,
+      },
+    ],
+    evidence_items: [
+      { type: "note", title: "Referral note", detail: "Teams handover says duty review is needed today.", source: "Teams" },
+      { type: "document", title: "Case portal shell", detail: "Case portal record created but no officer assigned yet.", source: "Case portal" },
+    ],
+    case_notes: [
+      {
+        id: "note-1048-teams",
+        type: "case_note",
+        app: "Teams",
+        title: "MASH duty handover",
+        summary: "Teams referral asks children and families duty to review today.",
+        body: "Demo Teams handover: referral note includes safeguarding wording and asks for duty review within four hours. The AI flag is only a queueing aid; staff must follow statutory safeguarding process.",
+        time: "Today 13:03",
+        owner: "Children & families",
+        external_url: "https://teams.microsoft.com/",
+      },
+      {
+        id: "note-1048-caseportal",
+        type: "evidence",
+        app: "Case portal",
+        title: "Referral case shell",
+        summary: "Case shell exists with source referral metadata.",
+        body: "Demo case shell: referral source and timestamp are present. No final priority decision has been recorded.",
+        time: "Today 13:05",
+        owner: "Children & families",
+        external_url: "https://www.office.com/",
+      },
+    ],
+    previous_contacts: [],
+    case_request: {
+      ...defaultCase,
+      service_type: "children_services",
+      service_subtype: "family_support_referral",
+      district: "Epping Forest",
+      source_system: "teams_referral",
+      sla_hours: 4,
+      out_of_hours: true,
+      days_open: 0,
+      previous_contacts: 0,
+      vulnerability_flag: true,
+      deprivation_band: "medium",
+      channel: "email",
+      urgency_text: "Safeguarding concern in family support referral",
     },
   },
 ];
