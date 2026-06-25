@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MessageSquare, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import type { Route } from "../router";
 import { NAV } from "../home/content";
 
@@ -7,10 +7,9 @@ type Props = {
   route: Route;
   online: boolean;
   onNavigate: (route: Route) => void;
-  onOpenChat: () => void;
 };
 
-export function TopNav({ route, online, onOpenChat }: Props) {
+export function TopNav({ route, online }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const isActive = (match?: "home" | "dashboard") => match !== undefined && match === route;
 
@@ -40,11 +39,6 @@ export function TopNav({ route, online, onOpenChat }: Props) {
               <span className="dot-live" /> {online ? "API online" : "API offline"}
             </span>
           )}
-          {route === "home" && (
-            <button className="btn-primary" onClick={onOpenChat}>
-              <MessageSquare size={15} /> Ask the assistant
-            </button>
-          )}
           <button
             className="nav-burger"
             aria-label={menuOpen ? "Close menu" : "Open menu"}
@@ -68,17 +62,6 @@ export function TopNav({ route, online, onOpenChat }: Props) {
               {item.label}
             </a>
           ))}
-          {route === "home" && (
-            <button
-              className="btn-primary"
-              onClick={() => {
-                setMenuOpen(false);
-                onOpenChat();
-              }}
-            >
-              <MessageSquare size={15} /> Ask the assistant
-            </button>
-          )}
         </nav>
       )}
     </header>

@@ -21,8 +21,10 @@ SourceSystem = Literal["web_form", "contact_centre", "shared_mailbox", "teams_re
 DecisionStatus = Literal["recorded"]
 EvidenceType = Literal["photo", "document", "note"]
 SourceItemType = Literal["case_note", "previous_contact", "evidence"]
-SourceApp = Literal["Outlook", "Teams", "SharePoint", "Case portal"]
+SourceApp = Literal["Outlook", "Teams", "SharePoint", "Case portal", "Phone"]
 CaseStatus = Literal["New", "In review", "Waiting update", "In progress"]
+GraphSource = Literal["outlook", "teams", "sharepoint", "onedrive", "case_portal"]
+M365DetailStatus = Literal["live", "fallback", "not_configured", "not_found", "error"]
 
 
 class CaseRequest(BaseModel):
@@ -65,11 +67,19 @@ class PredictionResponse(BaseModel):
 
 
 class EvidenceItem(BaseModel):
+    id: str = ""
     type: EvidenceType
     title: str
     detail: str
     source: str
     image_url: str | None = None
+    graph_source: GraphSource | None = None
+    graph_id: str = ""
+    drive_id: str = ""
+    site_id: str = ""
+    item_id: str = ""
+    web_url: str = ""
+    content_type: str = ""
 
 
 class SourceItem(BaseModel):
@@ -82,6 +92,16 @@ class SourceItem(BaseModel):
     time: str
     owner: str
     external_url: str = ""
+    graph_source: GraphSource | None = None
+    graph_id: str = ""
+    mailbox: str = ""
+    team_id: str = ""
+    channel_id: str = ""
+    chat_id: str = ""
+    drive_id: str = ""
+    site_id: str = ""
+    item_id: str = ""
+    web_url: str = ""
 
 
 class StaffMember(BaseModel):
@@ -182,3 +202,21 @@ class ChatResponse(BaseModel):
     suggestions: list[str] = []
     prediction: PredictionResponse | None = None
     citations: list[Citation] = []
+
+
+class M365SourceDetail(BaseModel):
+    id: str
+    title: str
+    app: SourceApp | None = None
+    source: str
+    status: M365DetailStatus
+    summary: str = ""
+    body: str = ""
+    owner: str = ""
+    time: str = ""
+    web_url: str = ""
+    content_url: str = ""
+    preview_url: str = ""
+    content_type: str = ""
+    image_url: str | None = None
+    message: str = ""

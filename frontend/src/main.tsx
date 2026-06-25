@@ -11,15 +11,9 @@ import "./styles.css";
 function App() {
   const [route, navigate] = useHashRoute();
   const [chatOpen, setChatOpen] = useState(false);
-  const [seed, setSeed] = useState<string | null>(null);
   const [online, setOnline] = useState(false);
   const [caseInput, setCaseInput] = useState<CaseRequest>(defaultCase);
   const [prediction, setPrediction] = useState<Prediction | null>(null);
-
-  const openChat = (prompt?: string) => {
-    if (prompt) setSeed(prompt);
-    setChatOpen(true);
-  };
 
   useEffect(() => {
     let active = true;
@@ -32,32 +26,47 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    document.body.classList.toggle("body--dashboard", route === "dashboard");
+    document.documentElement.classList.toggle("html--dashboard", route === "dashboard");
+    return () => {
+      document.body.classList.remove("body--dashboard");
+      document.documentElement.classList.remove("html--dashboard");
+    };
+  }, [route]);
+
   return (
     <div className={`app app--${route}`}>
-      {route === "home" && <TopNav route={route} online={online} onNavigate={navigate} onOpenChat={() => openChat()} />}
+      {route === "home" && (
+        <TopNav
+          route={route}
+          online={online}
+          onNavigate={navigate}
+        />
+      )}
 
       <main className="main-col">
         {route === "home" ? (
-          <Home onOpenChat={openChat} onNavigate={navigate} />
+          <Home onNavigate={navigate} />
         ) : (
           <Dashboard
             caseInput={caseInput}
             setCaseInput={setCaseInput}
             prediction={prediction}
             setPrediction={setPrediction}
+            online={online}
+            chatOpen={chatOpen}
+            onToggleChat={() => setChatOpen((value) => !value)}
           />
         )}
       </main>
 
-      {route === "home" && (
+      {route === "dashboard" && (
         <ChatWidget
           open={chatOpen}
-          onToggle={() => setChatOpen((value) => !value)}
           onClose={() => setChatOpen(false)}
           caseContext={caseInput}
           online={online}
-          seed={seed}
-          onSeedConsumed={() => setSeed(null)}
         />
       )}
     </div>

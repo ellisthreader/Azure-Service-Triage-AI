@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MessageSquare, Send, Sparkles, X } from "lucide-react";
+import { Bot, PanelRightClose, Send, Sparkles } from "lucide-react";
 import type { CaseRequest, ChatMessage, Prediction } from "../api";
 import { pct, postChat } from "../api";
 
@@ -10,7 +10,6 @@ const STARTERS = ["How does the scoring work?", "Is the model fair?", "Triage my
 
 type Props = {
   open: boolean;
-  onToggle: () => void;
   onClose: () => void;
   caseContext: CaseRequest;
   online: boolean;
@@ -20,7 +19,7 @@ type Props = {
 
 type Turn = ChatMessage & { prediction?: Prediction | null; citations?: { label: string; source: string }[] };
 
-export function ChatWidget({ open, onToggle, onClose, caseContext, online, seed, onSeedConsumed }: Props) {
+export function ChatWidget({ open, onClose, caseContext, online, seed, onSeedConsumed }: Props) {
   const [turns, setTurns] = useState<Turn[]>([{ role: "assistant", content: GREETING }]);
   const [suggestions, setSuggestions] = useState<string[]>(STARTERS);
   const [input, setInput] = useState("");
@@ -81,23 +80,24 @@ export function ChatWidget({ open, onToggle, onClose, caseContext, online, seed,
 
   return (
     <>
+      <div className={`chat-scrim ${open ? "open" : ""}`} aria-hidden="true" onClick={onClose} />
       <div className={`chat-pop ${open ? "open" : ""}`} role="dialog" aria-label="Service Priority assistant" aria-hidden={!open}>
         <div className="rail-head">
-          <div className="rail-avatar"><Sparkles size={18} /></div>
+          <div className="rail-avatar"><Bot size={18} /></div>
           <div className="title">
-            <b>Priority assistant</b>
-            <small>Grounded in the live model</small>
+            <b>AI assistant</b>
+            <small>Service priority copilot</small>
           </div>
           <span className={`rail-status ${online ? "" : "offline"}`}>
             <span className="dot-live" /> {online ? "Online" : "Offline"}
           </span>
-          <button className="rail-close" onClick={onClose} aria-label="Close assistant"><X size={18} /></button>
+          <button className="rail-close" onClick={onClose} aria-label="Close assistant"><PanelRightClose size={18} /></button>
         </div>
 
         <div className="rail-log" ref={logRef}>
           {turns.map((turn, index) => (
             <div className={`msg ${turn.role}`} key={index}>
-              <div className="msg-ic">{turn.role === "assistant" ? "AI" : "You"}</div>
+              <div className="msg-ic">{turn.role === "assistant" ? <Sparkles size={14} /> : "You"}</div>
               <div className="bubble">
                 {turn.content}
                 {turn.prediction && <ChatPrediction prediction={turn.prediction} />}
@@ -113,7 +113,7 @@ export function ChatWidget({ open, onToggle, onClose, caseContext, online, seed,
           ))}
           {busy && (
             <div className="msg assistant">
-              <div className="msg-ic">AI</div>
+              <div className="msg-ic"><Sparkles size={14} /></div>
               <div className="bubble typing"><i /><i /><i /></div>
             </div>
           )}
@@ -151,17 +151,6 @@ export function ChatWidget({ open, onToggle, onClose, caseContext, online, seed,
         </form>
         <p className="rail-note">Advisory only · synthetic data · a caseworker makes the final decision.</p>
       </div>
-
-      <button
-        className={`chat-fab ${open ? "is-open" : ""}`}
-        onClick={onToggle}
-        aria-label={open ? "Close assistant" : "Open assistant"}
-        aria-expanded={open}
-      >
-        <span className="fab-ic fab-chat"><MessageSquare size={24} /></span>
-        <span className="fab-ic fab-close"><X size={24} /></span>
-        {!open && <span className="fab-ping" aria-hidden="true" />}
-      </button>
     </>
   );
 }

@@ -12,7 +12,6 @@ import {
   Landmark,
   Linkedin,
   Mail,
-  MessageSquare,
   Palette,
   Recycle,
   Search,
@@ -57,7 +56,7 @@ const socialIcons: Record<string, ReactNode> = {
   youtube: <Youtube size={18} />,
 };
 
-export function Hero({ onAsk, onOpen }: { onAsk: (prompt?: string) => void; onOpen: (route: Route) => void }) {
+export function Hero({ onOpen }: { onOpen: (route: Route) => void }) {
   return (
     <section className="essex-hero">
       <img className="hero-generated-bg" src={HERO.generatedBackdrop} alt="" aria-hidden="true" />
@@ -73,8 +72,8 @@ export function Hero({ onAsk, onOpen }: { onAsk: (prompt?: string) => void; onOp
           <form className="hero-search" onSubmit={(event) => event.preventDefault()}>
             <Search size={19} />
             <input aria-label={HERO.searchLabel} placeholder={HERO.searchLabel} />
-            <button type="button" onClick={() => onAsk("Help me find an Essex County Council service")}>
-              Ask
+            <button type="submit">
+              Search
             </button>
           </form>
           <div className="hero-actions">
@@ -186,7 +185,7 @@ export function News() {
   );
 }
 
-export function Cta({ onAsk }: { onAsk: () => void }) {
+export function Cta() {
   return (
     <section className="newsletter-section">
       <div className="wrap">
@@ -197,7 +196,6 @@ export function Cta({ onAsk }: { onAsk: () => void }) {
             <p>{NEWSLETTER.body}</p>
           </div>
           <a href={NEWSLETTER.href}>{NEWSLETTER.label}</a>
-          <button type="button" onClick={onAsk}><MessageSquare size={17} /> Ask assistant</button>
         </div>
       </div>
     </section>

@@ -59,11 +59,27 @@ export type CaseRecord = {
   last_updated: string;
   assigned_to: StaffMember | null;
   activity: ActivityItem[];
-  evidence_items: { type: "photo" | "document" | "note"; title: string; detail: string; source: string; image_url?: string | null }[];
+  evidence_items: EvidenceItem[];
   case_notes: SourceItem[];
   previous_contacts: SourceItem[];
   case_request: CaseRequest;
   prediction?: Prediction | null;
+};
+
+export type EvidenceItem = {
+  id?: string;
+  type: "photo" | "document" | "note";
+  title: string;
+  detail: string;
+  source: string;
+  image_url?: string | null;
+  graph_source?: "outlook" | "teams" | "sharepoint" | "onedrive" | "case_portal" | null;
+  graph_id?: string;
+  drive_id?: string;
+  site_id?: string;
+  item_id?: string;
+  web_url?: string;
+  content_type?: string;
 };
 
 export type StaffMember = {
@@ -86,13 +102,41 @@ export type ActivityItem = {
 export type SourceItem = {
   id: string;
   type: "case_note" | "previous_contact" | "evidence";
-  app: "Outlook" | "Teams" | "SharePoint" | "Case portal";
+  app: "Outlook" | "Teams" | "SharePoint" | "Case portal" | "Phone";
   title: string;
   summary: string;
   body: string;
   time: string;
   owner: string;
   external_url?: string;
+  graph_source?: "outlook" | "teams" | "sharepoint" | "onedrive" | "case_portal" | null;
+  graph_id?: string;
+  mailbox?: string;
+  team_id?: string;
+  channel_id?: string;
+  chat_id?: string;
+  drive_id?: string;
+  site_id?: string;
+  item_id?: string;
+  web_url?: string;
+};
+
+export type M365SourceDetail = {
+  id: string;
+  title: string;
+  app?: SourceItem["app"] | null;
+  source: string;
+  status: "live" | "fallback" | "not_configured" | "not_found" | "error";
+  summary: string;
+  body: string;
+  owner: string;
+  time: string;
+  web_url: string;
+  content_url: string;
+  preview_url: string;
+  content_type: string;
+  image_url?: string | null;
+  message: string;
 };
 
 export type DecisionReceipt = {
@@ -302,6 +346,10 @@ export const fetchDashboard = () => getJson<DashboardSummary>("/dashboard/summar
 export const fetchHealth = () => getJson<Health>("/health");
 export const fetchCaseQueue = () => getJson<CaseRecord[]>("/cases/queue");
 export const fetchAuditSummary = () => getJson<AuditSummary>("/audit/summary");
+export const fetchCaseSourceDetail = (caseId: string, sourceId: string) =>
+  getJson<M365SourceDetail>(`/cases/${encodeURIComponent(caseId)}/sources/${encodeURIComponent(sourceId)}`);
+export const fetchCaseEvidenceDetail = (caseId: string, evidenceId: string) =>
+  getJson<M365SourceDetail>(`/cases/${encodeURIComponent(caseId)}/evidence/${encodeURIComponent(evidenceId)}`);
 
 export async function postPredict(payload: CaseRequest): Promise<Prediction> {
   const response = await fetch(`${API_BASE}/predict`, {
@@ -382,9 +430,9 @@ export const fallbackCaseQueue: CaseRecord[] = [
       },
     ],
     evidence_items: [
-      { type: "photo", title: "Repair photo", detail: "Synthetic image showing the reported fire-risk area.", source: "SharePoint", image_url: "/case-evidence/housing-fire-risk-photo.png" },
-      { type: "note", title: "Case note", detail: "Structured handover note with the key risk and access points.", source: "Teams handover", image_url: "/case-evidence/housing-case-note.png" },
-      { type: "document", title: "Previous contact", detail: "One earlier contact linked to the same repair issue.", source: "Outlook" },
+      { id: "evidence-1042-photo", type: "photo", title: "Kitchen meter cupboard photo", detail: "Resident-submitted repair photo showing scorch marks around the meter cupboard door frame.", source: "SharePoint", image_url: "/case-evidence/housing-fire-risk-photo.png" },
+      { id: "evidence-1042-call-log", type: "document", title: "Contact centre call log", detail: "Call handler notes mention burning smell, children in the property, and phone-first contact preference.", source: "Phone" },
+      { id: "evidence-1042-duty-note", type: "note", title: "Repairs duty note", detail: "Teams handover records the safety concern and asks repairs to confirm safe access before appointment booking.", source: "Teams", image_url: "/case-evidence/housing-case-note.png" },
     ],
     case_notes: [
       {
@@ -459,8 +507,9 @@ export const fallbackCaseQueue: CaseRecord[] = [
       },
     ],
     evidence_items: [
-      { type: "document", title: "Care record export", detail: "Synthetic care-package summary from SharePoint.", source: "SharePoint" },
-      { type: "note", title: "Locality update", detail: "Team note says support may have failed.", source: "Teams" },
+      { id: "evidence-1044-care-export", type: "document", title: "Care package record export", detail: "SharePoint care summary shows scheduled support was not confirmed for the morning visit.", source: "SharePoint" },
+      { id: "evidence-1044-provider-email", type: "document", title: "Provider confirmation email", detail: "Outlook message asks the provider to confirm whether the missed visit has been resolved.", source: "Outlook" },
+      { id: "evidence-1044-phone-log", type: "note", title: "Resident welfare call log", detail: "Phone note says the resident may be without support until the provider confirms cover.", source: "Phone" },
     ],
     case_notes: [
       {
@@ -539,8 +588,9 @@ export const fallbackCaseQueue: CaseRecord[] = [
       },
     ],
     evidence_items: [
-      { type: "photo", title: "Road defect photo", detail: "Synthetic photo placeholder from resident report.", source: "SharePoint" },
-      { type: "note", title: "Duplicate signal", detail: "Several reports mention the same location.", source: "Teams" },
+      { id: "evidence-1043-road-photo", type: "photo", title: "Road defect photo", detail: "Resident photo shows a pothole near a marked school crossing approach.", source: "SharePoint", image_url: "/case-evidence/highways-road-defect-photo.png" },
+      { id: "evidence-1043-map-note", type: "document", title: "Duplicate-location map note", detail: "Case portal map pins show three reports within the same short road section.", source: "Case portal" },
+      { id: "evidence-1043-phone-note", type: "note", title: "School-run phone call", detail: "Phone contact says vehicles are swerving around the defect during school drop-off.", source: "Phone" },
     ],
     case_notes: [
       {
@@ -610,7 +660,8 @@ export const fallbackCaseQueue: CaseRecord[] = [
       },
     ],
     evidence_items: [
-      { type: "document", title: "Form submission", detail: "Synthetic online form record.", source: "Case portal" },
+      { id: "evidence-1045-form", type: "document", title: "Billing enquiry form", detail: "Case portal submission asks why the instalment amount changed after a revised bill.", source: "Case portal" },
+      { id: "evidence-1045-email", type: "document", title: "Automated receipt email", detail: "Outlook receipt confirms the resident received the case reference and standard response timescale.", source: "Outlook" },
     ],
     case_notes: [
       {
@@ -625,7 +676,18 @@ export const fallbackCaseQueue: CaseRecord[] = [
         external_url: "https://www.office.com/",
       },
     ],
-    previous_contacts: [],
+    previous_contacts: [
+      {
+        id: "contact-1045-phone",
+        type: "previous_contact",
+        app: "Phone",
+        title: "Earlier balance query call",
+        summary: "Short call last week asked where to find the revised bill online.",
+        body: "Synthetic phone note: caller was directed to the case portal and advised to submit the billing query form if the instalment schedule still looked incorrect.",
+        time: "Friday 14:22",
+        owner: "Revenues contact centre",
+      },
+    ],
     case_request: {
       ...defaultCase,
       service_type: "council_tax",
@@ -668,8 +730,9 @@ export const fallbackCaseQueue: CaseRecord[] = [
       },
     ],
     evidence_items: [
-      { type: "document", title: "Income evidence checklist", detail: "Case portal checklist shows two evidence items still outstanding.", source: "Case portal" },
-      { type: "note", title: "Benefits inbox handover", detail: "Shared mailbox note asks duty reviewer to check arrears risk.", source: "Outlook" },
+      { id: "evidence-1046-income-checklist", type: "document", title: "Income evidence checklist", detail: "Case portal checklist shows tenancy confirmation and one income document still outstanding.", source: "Case portal" },
+      { id: "evidence-1046-email", type: "document", title: "Rent arrears email", detail: "Shared mailbox email mentions arrears, callback request, and difficulty uploading evidence.", source: "Outlook" },
+      { id: "evidence-1046-call-note", type: "note", title: "Callback attempt note", detail: "Phone note records unsuccessful callback and asks the reviewer to try again before close of day.", source: "Phone" },
     ],
     case_notes: [
       {
@@ -750,8 +813,9 @@ export const fallbackCaseQueue: CaseRecord[] = [
       },
     ],
     evidence_items: [
-      { type: "note", title: "Referral note", detail: "Teams handover says duty review is needed today.", source: "Teams" },
-      { type: "document", title: "Case portal shell", detail: "Case portal record created but no officer assigned yet.", source: "Case portal" },
+      { id: "evidence-1048-referral", type: "note", title: "Teams referral note", detail: "Referral note asks children and families duty to review within four hours.", source: "Teams" },
+      { id: "evidence-1048-call-log", type: "document", title: "Out-of-hours call log", detail: "Phone log records the referral source and states no final decision has been made.", source: "Phone" },
+      { id: "evidence-1048-case-shell", type: "document", title: "Case portal shell", detail: "Case portal shell has referral metadata and is waiting for duty reviewer assignment.", source: "Case portal" },
     ],
     case_notes: [
       {
@@ -777,7 +841,19 @@ export const fallbackCaseQueue: CaseRecord[] = [
         external_url: "https://www.office.com/",
       },
     ],
-    previous_contacts: [],
+    previous_contacts: [
+      {
+        id: "contact-1048-outlook",
+        type: "previous_contact",
+        app: "Outlook",
+        title: "Previous information request",
+        summary: "Earlier mailbox item requested background information from a partner team.",
+        body: "Synthetic email: partner team asked whether there was any existing family-support context before the referral was sent to duty.",
+        time: "Yesterday 17:36",
+        owner: "Children and families shared mailbox",
+        external_url: "https://outlook.office.com/mail/",
+      },
+    ],
     case_request: {
       ...defaultCase,
       service_type: "children_services",

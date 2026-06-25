@@ -5,6 +5,9 @@
 }
 
 .app--dashboard {
+  height: 100vh;
+  min-height: 100vh;
+  overflow: hidden;
   background: var(--c-canvas);
 }
 
@@ -273,7 +276,9 @@
 }
 
 .app--dashboard .main-col {
+  height: 100vh;
   min-height: 100vh;
+  overflow: hidden;
 }
 
 @media (max-width: 1040px) {

@@ -2,13 +2,18 @@ from __future__ import annotations
 
 import csv
 import json
+import os
+import time
 from pathlib import Path
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 
 from .audit_store import AuditStore, make_audit_id, utc_now
 from .chat import ChatAssistant
+from .microsoft_graph import MicrosoftGraphService
 from .model_service import ModelService
 from .monitoring import metrics_summary, record_prediction
 from .schemas import (
@@ -19,11 +24,28 @@ from .schemas import (
     ChatResponse,
     DecisionReceipt,
     DecisionRequest,
+    EvidenceItem,
     HealthResponse,
+    M365SourceDetail,
     MetricsSummary,
     PredictionResponse,
+    SourceItem,
     StaffMember,
 )
+
+
+def load_local_env(path: Path) -> None:
+    if not path.exists():
+        return
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
 
 
 app = FastAPI(
@@ -45,6 +67,8 @@ model_service = ModelService()
 chat_assistant = ChatAssistant(model_service)
 audit_store = AuditStore()
 ROOT = Path(__file__).resolve().parents[2]
+load_local_env(ROOT / ".env")
+graph_service = MicrosoftGraphService()
 
 STAFF = {
     "me": {
@@ -122,6 +146,16 @@ STAFF = {
 }
 
 CASE_ASSIGNMENTS: dict[str, StaffMember] = {}
+LIVE_QUEUE_STARTED_AT = time.monotonic()
+LIVE_QUEUE_STEP_SECONDS = 5
+LIVE_BASE_CASE_IDS = {
+    "ECC-365-1042",
+    "ECC-365-1044",
+    "ECC-365-1043",
+    "ECC-365-1045",
+    "ECC-365-1046",
+    "ECC-365-1048",
+}
 
 CASE_QUEUE = [
     CaseRecord(
@@ -159,20 +193,23 @@ CASE_QUEUE = [
         ],
         evidence_items=[
             {
+                "id": "evidence-1042-photo",
                 "type": "photo",
                 "title": "Repair photo",
                 "detail": "Synthetic image showing the reported fire-risk area.",
                 "source": "SharePoint",
                 "image_url": "/case-evidence/housing-fire-risk-photo.png",
+                "graph_source": "sharepoint",
             },
             {
+                "id": "evidence-1042-note",
                 "type": "note",
                 "title": "Case note",
                 "detail": "Structured handover note with the key risk and access points.",
                 "source": "Teams handover",
                 "image_url": "/case-evidence/housing-case-note.png",
             },
-            {"type": "document", "title": "Previous contact", "detail": "One earlier contact linked to the same repair issue.", "source": "Outlook"},
+            {"id": "evidence-1042-contact", "type": "document", "title": "Previous contact", "detail": "One earlier contact linked to the same repair issue.", "source": "Outlook"},
         ],
         case_notes=[
             {
@@ -736,6 +773,431 @@ CASE_QUEUE = [
     ),
 ]
 
+ACCOUNT_CONTEXT: dict[str, dict[str, list[dict[str, object]]]] = {
+    "ECC-365-1042": {
+        "evidence_items": [
+            {
+                "id": "evidence-1042-photo",
+                "type": "photo",
+                "title": "Kitchen meter cupboard photo",
+                "detail": "Resident-submitted repair photo showing scorch marks around the meter cupboard door frame.",
+                "source": "SharePoint",
+                "image_url": "/case-evidence/housing-fire-risk-photo.png",
+                "graph_source": "sharepoint",
+            },
+            {
+                "id": "evidence-1042-call-log",
+                "type": "document",
+                "title": "Contact centre call log",
+                "detail": "Call handler notes mention burning smell, children in the property, and phone-first contact preference.",
+                "source": "Phone",
+            },
+            {
+                "id": "evidence-1042-duty-note",
+                "type": "note",
+                "title": "Repairs duty note",
+                "detail": "Teams handover records the safety concern and asks repairs to confirm safe access before appointment booking.",
+                "source": "Teams",
+                "image_url": "/case-evidence/housing-case-note.png",
+            },
+        ],
+        "case_notes": [
+            {
+                "id": "note-1042-phone",
+                "type": "case_note",
+                "app": "Phone",
+                "title": "Inbound call transcript summary",
+                "summary": "Resident reported a burning smell near the meter cupboard and asked for a call back before any visit.",
+                "body": "Synthetic call log: caller reported scorch marks near the meter cupboard and a burning smell after using the kitchen sockets. Children are in the household. Officer should confirm whether the supply has been isolated and book an urgent repair inspection if safe access is available.",
+                "time": "Today 09:08",
+                "owner": "Contact centre",
+            },
+            {
+                "id": "note-1042-teams",
+                "type": "case_note",
+                "app": "Teams",
+                "title": "Repairs duty handover",
+                "summary": "Contact centre flagged possible fire-risk wording and children in the household.",
+                "body": "Repairs duty note: review photo evidence, contact resident by phone first, and follow emergency repair triage if the meter cupboard remains unsafe.",
+                "time": "Today 09:12",
+                "owner": "Housing repairs",
+                "external_url": "https://teams.microsoft.com/",
+            },
+            {
+                "id": "note-1042-sharepoint",
+                "type": "evidence",
+                "app": "SharePoint",
+                "title": "Repair evidence folder",
+                "summary": "Repair photo, call summary, and previous email are linked to the case folder.",
+                "body": "Synthetic SharePoint folder summary: contains resident photo, call-handler note, and previous contact reference. No real resident data is stored in this demo.",
+                "time": "Today 09:20",
+                "owner": "Housing repairs",
+                "external_url": "https://www.office.com/launch/sharepoint",
+            },
+        ],
+        "previous_contacts": [
+            {
+                "id": "contact-1042-outlook",
+                "type": "previous_contact",
+                "app": "Outlook",
+                "title": "Resident email follow-up",
+                "summary": "Earlier email asked for an update and repeated concern about safety in the home.",
+                "body": "Synthetic email: resident asked whether the repair could be inspected urgently and noted that the same area had been reported previously.",
+                "time": "Yesterday 16:42",
+                "owner": "Repairs shared mailbox",
+                "external_url": "https://outlook.office.com/mail/",
+            }
+        ],
+    },
+    "ECC-365-1044": {
+        "evidence_items": [
+            {"id": "evidence-1044-care-export", "type": "document", "title": "Care package record export", "detail": "SharePoint care summary shows scheduled support was not confirmed for the morning visit.", "source": "SharePoint"},
+            {"id": "evidence-1044-provider-email", "type": "document", "title": "Provider confirmation email", "detail": "Outlook message asks the provider to confirm whether the missed visit has been resolved.", "source": "Outlook"},
+            {"id": "evidence-1044-phone-log", "type": "note", "title": "Resident welfare call log", "detail": "Phone note says the resident may be without support until the provider confirms cover.", "source": "Phone"},
+        ],
+        "case_notes": [
+            {
+                "id": "note-1044-phone",
+                "type": "case_note",
+                "app": "Phone",
+                "title": "Welfare call summary",
+                "summary": "Call handler recorded concern that the planned support visit may not have taken place.",
+                "body": "Synthetic phone note: caller said the care visit expected this morning had not been confirmed. Resident may need a same-day welfare check if provider cannot confirm attendance.",
+                "time": "Today 08:29",
+                "owner": "Adult support contact centre",
+            },
+            {
+                "id": "note-1044-teams",
+                "type": "case_note",
+                "app": "Teams",
+                "title": "Locality team update",
+                "summary": "Locality team asked duty officer to check provider status before contacting the resident.",
+                "body": "Teams handover: provider status is unclear. Check the care record, then call the provider and record whether cover is in place today.",
+                "time": "Today 08:35",
+                "owner": "Locality team",
+                "external_url": "https://teams.microsoft.com/",
+            },
+            {
+                "id": "note-1044-outlook",
+                "type": "case_note",
+                "app": "Outlook",
+                "title": "Provider update request",
+                "summary": "Shared mailbox email requests confirmation of the missed support visit.",
+                "body": "Synthetic email to provider: please confirm whether the morning support visit was completed or whether replacement cover is needed today.",
+                "time": "Today 08:43",
+                "owner": "Adult support shared mailbox",
+                "external_url": "https://outlook.office.com/mail/",
+            },
+        ],
+        "previous_contacts": [
+            {
+                "id": "contact-1044-sharepoint",
+                "type": "previous_contact",
+                "app": "SharePoint",
+                "title": "Previous support concern",
+                "summary": "Earlier case record mentions a related missed support concern.",
+                "body": "Synthetic previous case note: resident reported a missed support visit earlier in the week. Escalate according to service policy if a second missed visit is confirmed.",
+                "time": "Yesterday 11:05",
+                "owner": "Adult support",
+                "external_url": "https://www.office.com/launch/sharepoint",
+            }
+        ],
+    },
+    "ECC-365-1043": {
+        "evidence_items": [
+            {
+                "id": "evidence-1043-road-photo",
+                "type": "photo",
+                "title": "Road defect photo",
+                "detail": "Resident photo shows a pothole near a marked school crossing approach.",
+                "source": "SharePoint",
+                "image_url": "/case-evidence/highways-road-defect-photo.png",
+            },
+            {"id": "evidence-1043-map-note", "type": "document", "title": "Duplicate-location map note", "detail": "Case portal map pins show three reports within the same short road section.", "source": "Case portal"},
+            {"id": "evidence-1043-phone-note", "type": "note", "title": "School-run phone call", "detail": "Phone contact says vehicles are swerving around the defect during school drop-off.", "source": "Phone"},
+        ],
+        "case_notes": [
+            {
+                "id": "note-1043-phone",
+                "type": "case_note",
+                "app": "Phone",
+                "title": "Resident call about school-route impact",
+                "summary": "Caller reported repeated near-misses as drivers avoid the road defect.",
+                "body": "Synthetic phone note: caller described vehicles moving into the opposite lane near school drop-off time. Check duplicate reports and consider whether inspection priority should be raised.",
+                "time": "Today 09:58",
+                "owner": "Highways contact centre",
+            },
+            {
+                "id": "note-1043-teams",
+                "type": "case_note",
+                "app": "Teams",
+                "title": "Highways duty thread",
+                "summary": "Several reports may relate to the same school-route location.",
+                "body": "Duty desk should group linked reports, check prior inspection history, and decide whether one inspection can cover the route.",
+                "time": "Today 10:05",
+                "owner": "Highways duty desk",
+                "external_url": "https://teams.microsoft.com/",
+            },
+        ],
+        "previous_contacts": [
+            {
+                "id": "contact-1043-caseportal",
+                "type": "previous_contact",
+                "app": "Case portal",
+                "title": "Earlier road defect report",
+                "summary": "Portal report from yesterday refers to the same school route.",
+                "body": "Synthetic portal submission: resident uploaded a location pin and noted the defect had worsened after rainfall.",
+                "time": "Yesterday 09:47",
+                "owner": "Highways case portal",
+                "external_url": "https://www.office.com/",
+            }
+        ],
+    },
+    "ECC-365-1045": {
+        "evidence_items": [
+            {"id": "evidence-1045-form", "type": "document", "title": "Billing enquiry form", "detail": "Case portal submission asks why the instalment amount changed after a revised bill.", "source": "Case portal"},
+            {"id": "evidence-1045-email", "type": "document", "title": "Automated receipt email", "detail": "Outlook receipt confirms the resident received the case reference and standard response timescale.", "source": "Outlook"},
+        ],
+        "case_notes": [
+            {
+                "id": "note-1045-caseportal",
+                "type": "case_note",
+                "app": "Case portal",
+                "title": "Council tax billing enquiry",
+                "summary": "Resident asks why monthly instalments changed after a revised bill.",
+                "body": "Synthetic portal form: resident asks for an explanation of a revised council tax instalment schedule. No hardship, enforcement, vulnerability, or urgent risk wording is present.",
+                "time": "Today 12:10",
+                "owner": "Revenues",
+                "external_url": "https://www.office.com/",
+            },
+            {
+                "id": "note-1045-outlook",
+                "type": "case_note",
+                "app": "Outlook",
+                "title": "Acknowledgement email",
+                "summary": "Automated email confirms the enquiry was accepted into the standard billing queue.",
+                "body": "Synthetic email receipt: your billing enquiry has been received and will be handled in date order. Please use the portal reference for further messages.",
+                "time": "Today 12:11",
+                "owner": "Revenues shared mailbox",
+                "external_url": "https://outlook.office.com/mail/",
+            },
+        ],
+        "previous_contacts": [
+            {
+                "id": "contact-1045-phone",
+                "type": "previous_contact",
+                "app": "Phone",
+                "title": "Earlier balance query call",
+                "summary": "Short call last week asked where to find the revised bill online.",
+                "body": "Synthetic phone note: caller was directed to the case portal and advised to submit the billing query form if the instalment schedule still looked incorrect.",
+                "time": "Friday 14:22",
+                "owner": "Revenues contact centre",
+            }
+        ],
+    },
+    "ECC-365-1046": {
+        "evidence_items": [
+            {"id": "evidence-1046-income-checklist", "type": "document", "title": "Income evidence checklist", "detail": "Case portal checklist shows tenancy confirmation and one income document still outstanding.", "source": "Case portal"},
+            {"id": "evidence-1046-email", "type": "document", "title": "Rent arrears email", "detail": "Shared mailbox email mentions arrears, callback request, and difficulty uploading evidence.", "source": "Outlook"},
+            {"id": "evidence-1046-call-note", "type": "note", "title": "Callback attempt note", "detail": "Phone note records unsuccessful callback and asks the reviewer to try again before close of day.", "source": "Phone"},
+        ],
+        "case_notes": [
+            {
+                "id": "note-1046-outlook",
+                "type": "case_note",
+                "app": "Outlook",
+                "title": "Benefits shared mailbox handover",
+                "summary": "Email asks the duty team to review rent arrears wording today.",
+                "body": "Synthetic email: resident says rent arrears have increased and asks for urgent support with benefit evidence. Assign a reviewer, check consent and evidence status, and follow the hardship escalation route if needed.",
+                "time": "Today 11:28",
+                "owner": "Benefits shared mailbox",
+                "external_url": "https://outlook.office.com/mail/",
+            },
+            {
+                "id": "note-1046-phone",
+                "type": "case_note",
+                "app": "Phone",
+                "title": "Callback attempt",
+                "summary": "Contact centre attempted callback and left the case for duty review.",
+                "body": "Synthetic phone note: callback attempt was unsuccessful. Reviewer should retry before close of day because the email mentions rent arrears and difficulty uploading documents.",
+                "time": "Today 11:36",
+                "owner": "Benefits contact centre",
+            },
+            {
+                "id": "note-1046-caseportal",
+                "type": "evidence",
+                "app": "Case portal",
+                "title": "Evidence checklist",
+                "summary": "Case portal shows missing tenancy confirmation and one income document.",
+                "body": "Demo case portal note: income evidence and tenancy confirmation are pending. Officer should not make an eligibility decision from the AI priority flag.",
+                "time": "Today 11:30",
+                "owner": "Financial support",
+                "external_url": "https://www.office.com/",
+            },
+        ],
+        "previous_contacts": [
+            {
+                "id": "contact-1046-outlook",
+                "type": "previous_contact",
+                "app": "Outlook",
+                "title": "Earlier rent arrears email",
+                "summary": "Earlier message mentioned arrears and a request for a call back.",
+                "body": "Synthetic previous email: resident asked for a call back about arrears and evidence needed for benefit support.",
+                "time": "Yesterday 15:44",
+                "owner": "Benefits shared mailbox",
+                "external_url": "https://outlook.office.com/mail/",
+            }
+        ],
+    },
+    "ECC-365-1047": {
+        "evidence_items": [
+            {
+                "id": "evidence-1047-photo",
+                "type": "photo",
+                "title": "Collection point photo",
+                "detail": "Resident photo shows bins still at the assisted-collection point after scheduled collection.",
+                "source": "SharePoint",
+                "image_url": "/case-evidence/waste-collection-point-photo.png",
+            },
+            {"id": "evidence-1047-route-sheet", "type": "document", "title": "Assisted route sheet", "detail": "Waste operations route sheet flags an assisted-collection marker for the address.", "source": "SharePoint"},
+            {"id": "evidence-1047-phone-note", "type": "note", "title": "Assisted collection call", "detail": "Phone note says the resident cannot move bins to the kerb without assistance.", "source": "Phone"},
+        ],
+        "case_notes": [
+            {
+                "id": "note-1047-phone",
+                "type": "case_note",
+                "app": "Phone",
+                "title": "Missed assisted-collection call",
+                "summary": "Caller reported a repeated missed assisted collection and asked for a return collection.",
+                "body": "Synthetic phone note: resident has an assisted-collection marker and cannot move bins to the kerb. Check route sheet before booking a return collection.",
+                "time": "Today 10:34",
+                "owner": "Waste contact centre",
+            },
+            {
+                "id": "note-1047-teams",
+                "type": "case_note",
+                "app": "Teams",
+                "title": "Waste operations route handover",
+                "summary": "Team channel asks for a route check before booking a return visit.",
+                "body": "Teams handover: assisted collection may have been missed on the route. Confirm crew note and accessibility marker before contacting the resident.",
+                "time": "Today 10:39",
+                "owner": "Waste operations",
+                "external_url": "https://teams.microsoft.com/",
+            },
+        ],
+        "previous_contacts": [
+            {
+                "id": "contact-1047-caseportal",
+                "type": "previous_contact",
+                "app": "Case portal",
+                "title": "Earlier missed collection report",
+                "summary": "Case portal shows one earlier missed assisted-collection report.",
+                "body": "Synthetic portal contact: resident reported a previous missed assisted collection and confirmed the assisted marker should still apply.",
+                "time": "Monday 09:11",
+                "owner": "Waste operations",
+                "external_url": "https://www.office.com/",
+            }
+        ],
+    },
+    "ECC-365-1048": {
+        "evidence_items": [
+            {"id": "evidence-1048-referral", "type": "note", "title": "Teams referral note", "detail": "Referral note asks children and families duty to review within four hours.", "source": "Teams"},
+            {"id": "evidence-1048-call-log", "type": "document", "title": "Out-of-hours call log", "detail": "Phone log records the referral source and states no final decision has been made.", "source": "Phone"},
+            {"id": "evidence-1048-case-shell", "type": "document", "title": "Case portal shell", "detail": "Case portal shell has referral metadata and is waiting for duty reviewer assignment.", "source": "Case portal"},
+        ],
+        "case_notes": [
+            {
+                "id": "note-1048-phone",
+                "type": "case_note",
+                "app": "Phone",
+                "title": "Out-of-hours referral call",
+                "summary": "Duty line logged a family-support referral requiring review today.",
+                "body": "Synthetic phone note: referral source used safeguarding language and asked for same-day duty review. Follow statutory process; the AI flag is only a queueing aid.",
+                "time": "Today 13:01",
+                "owner": "Children and families duty line",
+            },
+            {
+                "id": "note-1048-teams",
+                "type": "case_note",
+                "app": "Teams",
+                "title": "MASH duty handover",
+                "summary": "Teams referral asks children and families duty to review today.",
+                "body": "Teams handover: referral note includes safeguarding wording and asks for duty review within four hours. Staff must follow statutory safeguarding process.",
+                "time": "Today 13:03",
+                "owner": "Children & families",
+                "external_url": "https://teams.microsoft.com/",
+            },
+            {
+                "id": "note-1048-caseportal",
+                "type": "evidence",
+                "app": "Case portal",
+                "title": "Referral case shell",
+                "summary": "Case shell exists with source referral metadata.",
+                "body": "Demo case shell: referral source and timestamp are present. No final priority decision has been recorded.",
+                "time": "Today 13:05",
+                "owner": "Children & families",
+                "external_url": "https://www.office.com/",
+            },
+        ],
+        "previous_contacts": [
+            {
+                "id": "contact-1048-outlook",
+                "type": "previous_contact",
+                "app": "Outlook",
+                "title": "Previous information request",
+                "summary": "Earlier mailbox item requested background information from a partner team.",
+                "body": "Synthetic email: partner team asked whether there was any existing family-support context before the referral was sent to duty.",
+                "time": "Yesterday 17:36",
+                "owner": "Children and families shared mailbox",
+                "external_url": "https://outlook.office.com/mail/",
+            }
+        ],
+    },
+    "ECC-365-1049": {
+        "evidence_items": [
+            {"id": "evidence-1049-tenancy-note", "type": "document", "title": "Housing options tenancy note", "detail": "Case portal note records the current housing-options enquiry and accessible contact request.", "source": "Case portal"},
+            {"id": "evidence-1049-email", "type": "document", "title": "Accessible contact email", "detail": "Outlook email asks for written updates and an accessible contact method.", "source": "Outlook"},
+            {"id": "evidence-1049-phone-note", "type": "note", "title": "Previous callback note", "detail": "Phone note records that the resident asked for email follow-up after a missed callback.", "source": "Phone"},
+        ],
+        "case_notes": [
+            {
+                "id": "note-1049-caseportal",
+                "type": "case_note",
+                "app": "Case portal",
+                "title": "Housing options case note",
+                "summary": "Resident asks for an update and accessible contact.",
+                "body": "Synthetic portal note: officer should review tenancy context and use the requested accessible contact method before sending the next update.",
+                "time": "Today 09:52",
+                "owner": "Housing options",
+                "external_url": "https://www.office.com/",
+            },
+            {
+                "id": "note-1049-phone",
+                "type": "case_note",
+                "app": "Phone",
+                "title": "Missed callback note",
+                "summary": "Contact centre recorded a missed callback and email follow-up preference.",
+                "body": "Synthetic phone note: callback was missed yesterday afternoon. Resident asked for written updates because phone contact is difficult during working hours.",
+                "time": "Today 09:56",
+                "owner": "Housing options contact centre",
+            },
+        ],
+        "previous_contacts": [
+            {
+                "id": "contact-1049-outlook",
+                "type": "previous_contact",
+                "app": "Outlook",
+                "title": "Previous housing options email",
+                "summary": "Previous contact requested a status update and accessible communication.",
+                "body": "Synthetic email: resident requested an update and asked for communication by email where possible.",
+                "time": "Yesterday 10:21",
+                "owner": "Housing options shared mailbox",
+                "external_url": "https://outlook.office.com/mail/",
+            }
+        ],
+    },
+}
+
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
@@ -785,14 +1247,79 @@ def metadata() -> dict[str, object]:
 
 @app.get("/cases/queue", response_model=list[CaseRecord])
 def case_queue() -> list[CaseRecord]:
-    return [case_with_live_state(record) for record in CASE_QUEUE]
+    return [case_with_live_state(record) for record in live_queue_records()]
+
+
+@app.get("/cases/{case_id}/sources/{source_id}", response_model=M365SourceDetail)
+async def case_source_detail(case_id: str, source_id: str) -> M365SourceDetail:
+    record = case_with_m365_links(enrich_case_account_context(find_case(case_id)))
+    source = next((item for item in [*record.case_notes, *record.previous_contacts] if item.id == source_id), None)
+    if source is None:
+        raise HTTPException(status_code=404, detail="Case source not found")
+    return await graph_service.source_detail(source)
+
+
+@app.get("/cases/{case_id}/evidence/{evidence_id}", response_model=M365SourceDetail)
+async def case_evidence_detail(case_id: str, evidence_id: str) -> M365SourceDetail:
+    record = case_with_m365_links(enrich_case_account_context(find_case(case_id)))
+    evidence = next((item for item in record.evidence_items if (item.id or item_slug(item.title)) == evidence_id), None)
+    if evidence is None:
+        raise HTTPException(status_code=404, detail="Case evidence not found")
+    return await graph_service.evidence_detail(evidence)
+
+
+@app.get("/m365/status")
+async def microsoft_365_status() -> dict[str, object]:
+    return await graph_service.status()
+
+
+@app.get("/m365/missing-links")
+def microsoft_365_missing_links() -> dict[str, list[dict[str, object]]]:
+    missing: dict[str, list[dict[str, object]]] = {"sources": [], "evidence": []}
+    for record in CASE_QUEUE:
+        linked = case_with_m365_links(record)
+        for item in [*linked.case_notes, *linked.previous_contacts]:
+            required = missing_source_fields(item)
+            if required:
+                missing["sources"].append(
+                    {
+                        "case_id": record.case_id,
+                        "id": item.id,
+                        "title": item.title,
+                        "graph_source": item.graph_source,
+                        "missing": required,
+                    }
+                )
+        for item in linked.evidence_items:
+            required = missing_evidence_fields(item)
+            if required:
+                missing["evidence"].append(
+                    {
+                        "case_id": record.case_id,
+                        "id": item.id,
+                        "title": item.title,
+                        "graph_source": item.graph_source,
+                        "missing": required,
+                    }
+                )
+    return missing
+
+
+@app.get("/m365/files/{drive_id}/items/{item_id}/content")
+async def microsoft_365_file_content(drive_id: str, item_id: str) -> Response:
+    try:
+        content, content_type, content_disposition = await graph_service.file_content(drive_id, item_id)
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=exc.response.status_code, detail="Microsoft 365 file content could not be loaded.") from exc
+    headers = {}
+    if content_disposition:
+        headers["content-disposition"] = content_disposition
+    return Response(content=content, media_type=content_type, headers=headers)
 
 
 @app.post("/cases/{case_id}/assign-to-self", response_model=CaseRecord)
 def assign_case_to_self(case_id: str, current_user: StaffMember) -> CaseRecord:
-    record = next((item for item in CASE_QUEUE if item.case_id == case_id), None)
-    if record is None:
-        raise HTTPException(status_code=404, detail="Case not found")
+    record = find_case(case_id)
     CASE_ASSIGNMENTS[case_id] = current_user
     return case_with_live_state(record)
 
@@ -962,7 +1489,193 @@ def dashboard_summary() -> dict[str, object]:
     }
 
 
+def live_queue_phase() -> int:
+    return int((time.monotonic() - LIVE_QUEUE_STARTED_AT) // LIVE_QUEUE_STEP_SECONDS)
+
+
+def live_staff(key: str) -> StaffMember:
+    return StaffMember(**STAFF[key])
+
+
+def live_activity(case_id: str, suffix: str, action: str, detail: str, actor_key: str, time_label: str = "Just now") -> ActivityItem:
+    return ActivityItem(
+        id=f"act-{case_id.lower()}-live-{suffix}",
+        action=action,
+        detail=detail,
+        time=time_label,
+        actor=live_staff(actor_key),
+    )
+
+
+def enrich_case_account_context(record: CaseRecord) -> CaseRecord:
+    context = ACCOUNT_CONTEXT.get(record.case_id)
+    if not context:
+        return record
+
+    return record.model_copy(
+        update={
+            "evidence_items": [EvidenceItem.model_validate(item) for item in context.get("evidence_items", [])],
+            "case_notes": [SourceItem.model_validate(item) for item in context.get("case_notes", [])],
+            "previous_contacts": [SourceItem.model_validate(item) for item in context.get("previous_contacts", [])],
+        }
+    )
+
+
+def live_queue_records() -> list[CaseRecord]:
+    phase = live_queue_phase() % 8
+    visible_ids = set(LIVE_BASE_CASE_IDS)
+    if phase >= 2:
+        visible_ids.add("ECC-365-1047")
+    if phase >= 5:
+        visible_ids.add("ECC-365-1049")
+
+    records = [enrich_case_account_context(live_case_update(record, phase)) for record in CASE_QUEUE if record.case_id in visible_ids]
+    return sorted(records, key=lambda record: live_queue_order(record, phase))
+
+
+def live_queue_order(record: CaseRecord, phase: int) -> tuple[int, int]:
+    base_index = next((index for index, item in enumerate(CASE_QUEUE) if item.case_id == record.case_id), 99)
+    if record.case_id == "ECC-365-1042":
+        return (0, base_index)
+    current_movement = {
+        1: "ECC-365-1046",
+        2: "ECC-365-1047",
+        3: "ECC-365-1043",
+        4: "ECC-365-1048",
+        5: "ECC-365-1049",
+        6: "ECC-365-1046",
+    }.get(phase)
+    if record.case_id == current_movement:
+        return (1, base_index)
+    return (2, base_index)
+
+
+def live_case_update(record: CaseRecord, phase: int) -> CaseRecord:
+    activity = list(record.activity)
+    update: dict[str, object] = {}
+
+    if record.case_id == "ECC-365-1046" and 1 <= phase <= 5:
+        activity = [
+            live_activity(
+                record.case_id,
+                "assigned-benefits",
+                "Maya Patel assigned herself",
+                "Benefits duty desk allocated the rent arrears enquiry for same-day review.",
+                "maya",
+                time_label="Just now" if phase == 1 else "Earlier today",
+            ),
+            *activity,
+        ]
+        update = {
+            "title": "Review today",
+            "status": "In review",
+            "last_updated": "Just now" if phase == 1 else "Today 12:24",
+            "assigned_to": live_staff("maya"),
+            "activity": activity,
+        }
+
+    if record.case_id == "ECC-365-1046" and phase >= 6:
+        activity = [
+            live_activity(
+                record.case_id,
+                "released-benefits",
+                "Maya Patel released the case",
+                "The case returned to the benefits duty queue while evidence is checked.",
+                "maya",
+                time_label="Just now" if phase == 6 else "Earlier today",
+            ),
+            *activity,
+        ]
+        update = {
+            "title": "Unassigned",
+            "status": "Waiting update",
+            "last_updated": "Just now" if phase == 6 else "Today 12:38",
+            "assigned_to": None,
+            "activity": activity,
+        }
+
+    if record.case_id == "ECC-365-1047" and phase >= 2:
+        activity = [
+            live_activity(
+                record.case_id,
+                "route-note",
+                "Route update received",
+                "Waste operations confirmed the assisted-collection route needs a return check.",
+                "daniel",
+                time_label="Just now" if phase == 2 else "Earlier today",
+            ),
+            *activity,
+        ]
+        update = {
+            "title": "New update",
+            "status": "Waiting update",
+            "last_updated": "Just now" if phase == 2 else "Today 12:29",
+            "activity": activity,
+        }
+
+    if record.case_id == "ECC-365-1043" and phase >= 3:
+        activity = [
+            live_activity(
+                record.case_id,
+                "inspection-slot",
+                "Inspection slot requested",
+                "Highways duty desk requested a school-route inspection window.",
+                "tom",
+                time_label="Just now" if phase == 3 else "Earlier today",
+            ),
+            *activity,
+        ]
+        update = {
+            "status": "Waiting update",
+            "last_updated": "Just now" if phase == 3 else "Today 12:31",
+            "action": "Confirm inspection slot",
+            "activity": activity,
+        }
+
+    if record.case_id == "ECC-365-1048" and phase >= 4:
+        activity = [
+            live_activity(
+                record.case_id,
+                "assigned-family",
+                "Duty reviewer assigned",
+                "Children and families duty picked up the Teams referral for review.",
+                "nina",
+                time_label="Just now" if phase == 4 else "Earlier today",
+            ),
+            *activity,
+        ]
+        update = {
+            "title": "Review now",
+            "status": "In review",
+            "last_updated": "Just now" if phase == 4 else "Today 12:34",
+            "assigned_to": live_staff("nina"),
+            "activity": activity,
+        }
+
+    if record.case_id == "ECC-365-1049" and phase >= 5:
+        activity = [
+            live_activity(
+                record.case_id,
+                "portal-update",
+                "Portal update added",
+                "Housing options case portal added an accessible contact note.",
+                "owen",
+                time_label="Just now" if phase == 5 else "Earlier today",
+            ),
+            *activity,
+        ]
+        update = {
+            "title": "New portal update",
+            "last_updated": "Just now" if phase == 5 else "Today 12:36",
+            "activity": activity,
+        }
+
+    return record.model_copy(update=update) if update else record
+
+
 def case_with_live_state(record: CaseRecord) -> CaseRecord:
+    record = enrich_case_account_context(record)
+    record = case_with_m365_links(record)
     result = model_service.predict(record.case_request)
     assigned_to = CASE_ASSIGNMENTS.get(record.case_id, record.assigned_to)
     if isinstance(assigned_to, dict):
@@ -986,6 +1699,135 @@ def case_with_live_state(record: CaseRecord) -> CaseRecord:
             "prediction": PredictionResponse(**result),
         }
     )
+
+
+def find_case(case_id: str) -> CaseRecord:
+    record = next((item for item in CASE_QUEUE if item.case_id == case_id), None)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Case not found")
+    return record
+
+
+def case_with_m365_links(record: CaseRecord) -> CaseRecord:
+    links = read_m365_case_links()
+    source_links = links.get("sources", {}) if isinstance(links.get("sources"), dict) else {}
+    evidence_links = links.get("evidence", {}) if isinstance(links.get("evidence"), dict) else {}
+
+    case_notes = [
+        enrich_source_item(item, source_links.get(item.id, {}) if isinstance(source_links.get(item.id), dict) else {})
+        for item in record.case_notes
+    ]
+    previous_contacts = [
+        enrich_source_item(item, source_links.get(item.id, {}) if isinstance(source_links.get(item.id), dict) else {})
+        for item in record.previous_contacts
+    ]
+    evidence_items = []
+    for index, item in enumerate(record.evidence_items, start=1):
+        stable_id = item.id or f"evidence-{record.case_id.lower()}-{index}-{item_slug(item.title)}"
+        configured = evidence_links.get(stable_id, {}) if isinstance(evidence_links.get(stable_id), dict) else {}
+        evidence_items.append(enrich_evidence_item(item, stable_id, configured))
+
+    return record.model_copy(
+        update={
+            "case_notes": case_notes,
+            "previous_contacts": previous_contacts,
+            "evidence_items": evidence_items,
+        }
+    )
+
+
+def enrich_source_item(item, configured: dict[str, object]):
+    update = {
+        "graph_source": item.graph_source or infer_graph_source(item.app),
+        **string_values(configured),
+    }
+    return item.model_copy(update=update)
+
+
+def enrich_evidence_item(item, stable_id: str, configured: dict[str, object]):
+    update = {
+        "id": stable_id,
+        "graph_source": item.graph_source or infer_graph_source(item.source),
+        **string_values(configured),
+    }
+    return item.model_copy(update=update)
+
+
+def infer_graph_source(value: str):
+    normalized = value.lower()
+    if "outlook" in normalized or "mailbox" in normalized:
+        return "outlook"
+    if "teams" in normalized:
+        return "teams"
+    if "sharepoint" in normalized:
+        return "sharepoint"
+    if "onedrive" in normalized:
+        return "onedrive"
+    if "case portal" in normalized:
+        return "case_portal"
+    return None
+
+
+def missing_source_fields(item) -> list[str]:
+    if item.graph_source == "outlook":
+        return [field for field in ["mailbox", "graph_id"] if not getattr(item, field)]
+    if item.graph_source == "teams":
+        missing = []
+        if not item.graph_id:
+            missing.append("graph_id")
+        if not item.chat_id and not (item.team_id and item.channel_id):
+            missing.extend(["chat_id or team_id+channel_id"])
+        return missing
+    if item.graph_source in {"sharepoint", "onedrive"}:
+        return [field for field in ["drive_id", "item_id"] if not getattr(item, field)]
+    return []
+
+
+def missing_evidence_fields(item) -> list[str]:
+    if item.graph_source in {"sharepoint", "onedrive"}:
+        return [field for field in ["drive_id", "item_id"] if not getattr(item, field)]
+    if item.graph_source == "outlook":
+        return [field for field in ["mailbox", "graph_id"] if not getattr(item, field)]
+    if item.graph_source == "teams":
+        missing = []
+        if not item.graph_id:
+            missing.append("graph_id")
+        if not item.chat_id and not (item.team_id and item.channel_id):
+            missing.extend(["chat_id or team_id+channel_id"])
+        return missing
+    return []
+
+
+def string_values(values: dict[str, object]) -> dict[str, str]:
+    allowed = {
+        "graph_source",
+        "graph_id",
+        "mailbox",
+        "team_id",
+        "channel_id",
+        "chat_id",
+        "drive_id",
+        "site_id",
+        "item_id",
+        "web_url",
+        "content_type",
+    }
+    return {key: str(value) for key, value in values.items() if key in allowed and value is not None}
+
+
+def read_m365_case_links() -> dict[str, object]:
+    path = Path(os.getenv("M365_CASE_LINKS_PATH", str(ROOT / "m365-case-links.json")))
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def item_slug(value: str) -> str:
+    return value.lower().replace("&", "and").replace("/", "-").replace(" ", "-")
 
 
 def read_json(path: Path) -> dict[str, object]:

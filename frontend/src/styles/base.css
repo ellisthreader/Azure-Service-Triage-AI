@@ -16,6 +16,27 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+html.html--dashboard,
+body.body--dashboard {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body.body--dashboard #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+@media (max-width: 860px) {
+  html.html--dashboard,
+  body.body--dashboard,
+  body.body--dashboard #root {
+    height: auto;
+    overflow: visible;
+  }
+}
+
 h1,
 h2,
 h3,

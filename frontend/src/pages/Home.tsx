@@ -2,14 +2,13 @@ import type { Route } from "../router";
 import { Cta, Features, Footer, Hero, News, Queue, Quotes, Services, Tiles, TrustStrip } from "../home/sections";
 
 type Props = {
-  onOpenChat: (prompt?: string) => void;
   onNavigate: (route: Route) => void;
 };
 
-export function Home({ onOpenChat, onNavigate }: Props) {
+export function Home({ onNavigate }: Props) {
   return (
     <div className="portal">
-      <Hero onAsk={onOpenChat} onOpen={onNavigate} />
+      <Hero onOpen={onNavigate} />
       <TrustStrip />
       <Queue />
       <Services />
@@ -17,7 +16,7 @@ export function Home({ onOpenChat, onNavigate }: Props) {
       <Features />
       <Quotes />
       <News />
-      <Cta onAsk={() => onOpenChat()} />
+      <Cta />
       <Footer />
     </div>
   );

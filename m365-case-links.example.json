@@ -1,0 +1,148 @@
+{
+  "sources": {
+    "note-1042-teams": {
+      "graph_source": "teams",
+      "team_id": "",
+      "channel_id": "",
+      "chat_id": "",
+      "graph_id": ""
+    },
+    "note-1042-sharepoint": {
+      "graph_source": "sharepoint",
+      "drive_id": "",
+      "item_id": ""
+    },
+    "contact-1042-outlook": {
+      "graph_source": "outlook",
+      "mailbox": "",
+      "graph_id": ""
+    },
+    "note-1044-teams": {
+      "graph_source": "teams",
+      "team_id": "",
+      "channel_id": "",
+      "chat_id": "",
+      "graph_id": ""
+    },
+    "contact-1044-sharepoint": {
+      "graph_source": "sharepoint",
+      "drive_id": "",
+      "item_id": ""
+    },
+    "contact-1044-outlook": {
+      "graph_source": "outlook",
+      "mailbox": "",
+      "graph_id": ""
+    },
+    "note-1043-teams": {
+      "graph_source": "teams",
+      "team_id": "",
+      "channel_id": "",
+      "chat_id": "",
+      "graph_id": ""
+    },
+    "contact-1043-teams": {
+      "graph_source": "teams",
+      "team_id": "",
+      "channel_id": "",
+      "chat_id": "",
+      "graph_id": ""
+    },
+    "note-1046-outlook": {
+      "graph_source": "outlook",
+      "mailbox": "",
+      "graph_id": ""
+    },
+    "contact-1046-outlook": {
+      "graph_source": "outlook",
+      "mailbox": "",
+      "graph_id": ""
+    },
+    "note-1047-teams": {
+      "graph_source": "teams",
+      "team_id": "",
+      "channel_id": "",
+      "chat_id": "",
+      "graph_id": ""
+    },
+    "note-1048-teams": {
+      "graph_source": "teams",
+      "team_id": "",
+      "channel_id": "",
+      "chat_id": "",
+      "graph_id": ""
+    },
+    "contact-1049-outlook": {
+      "graph_source": "outlook",
+      "mailbox": "",
+      "graph_id": ""
+    }
+  },
+  "evidence": {
+    "evidence-1042-photo": {
+      "graph_source": "sharepoint",
+      "drive_id": "",
+      "item_id": ""
+    },
+    "evidence-1042-note": {
+      "graph_source": "teams",
+      "team_id": "",
+      "channel_id": "",
+      "chat_id": "",
+      "graph_id": ""
+    },
+    "evidence-1042-contact": {
+      "graph_source": "outlook",
+      "mailbox": "",
+      "graph_id": ""
+    },
+    "evidence-ecc-365-1044-1-care-record-export": {
+      "graph_source": "sharepoint",
+      "drive_id": "",
+      "item_id": ""
+    },
+    "evidence-ecc-365-1044-2-locality-update": {
+      "graph_source": "teams",
+      "team_id": "",
+      "channel_id": "",
+      "chat_id": "",
+      "graph_id": ""
+    },
+    "evidence-ecc-365-1043-1-road-defect-photo": {
+      "graph_source": "sharepoint",
+      "drive_id": "",
+      "item_id": ""
+    },
+    "evidence-ecc-365-1043-2-duplicate-signal": {
+      "graph_source": "teams",
+      "team_id": "",
+      "channel_id": "",
+      "chat_id": "",
+      "graph_id": ""
+    },
+    "evidence-ecc-365-1046-2-benefits-inbox-handover": {
+      "graph_source": "outlook",
+      "mailbox": "",
+      "graph_id": ""
+    },
+    "evidence-ecc-365-1047-1-collection-point-photo": {
+      "graph_source": "sharepoint",
+      "drive_id": "",
+      "item_id": ""
+    },
+    "evidence-ecc-365-1047-2-route-handover": {
+      "graph_source": "teams",
+      "team_id": "",
+      "channel_id": "",
+      "chat_id": "",
+      "graph_id": ""
+    },
+    "evidence-ecc-365-1048-1-referral-note": {
+      "graph_source": "teams",
+      "team_id": "",
+      "channel_id": "",
+      "chat_id": "",
+      "graph_id": ""
+    }
+  }
+}
