@@ -9,7 +9,6 @@ import {
   ClipboardList,
   Clock3,
   Database,
-  Hammer,
   FileCheck2,
   FileText,
   FolderOpen,
@@ -44,14 +43,13 @@ import {
 import { Badge } from "../components/primitives";
 import { TriageForm } from "../dashboard/TriageForm";
 
-type DashboardTab = "overview" | "triage" | "pipeline" | "tools" | "mlops";
+type DashboardTab = "overview" | "triage" | "pipeline" | "mlops";
 type MlopsSection = "summary" | "data" | "azure" | "model" | "monitoring" | "governance";
 
 const TABS: Array<{ id: DashboardTab; label: string; icon: ReactNode; helper: string }> = [
   { id: "overview", label: "Today", icon: <Home size={16} />, helper: "Priority list" },
   { id: "triage", label: "Case details", icon: <ShieldCheck size={16} />, helper: "Review record" },
   { id: "pipeline", label: "Decision support", icon: <ClipboardList size={16} />, helper: "Analyse information" },
-  { id: "tools", label: "Work tools", icon: <Hammer size={16} />, helper: "Role guidance" },
   { id: "mlops", label: "MLOps", icon: <LockKeyhole size={16} />, helper: "Manager view" },
 ];
 
@@ -75,6 +73,20 @@ type Props = {
 };
 
 const PROFILE_STORAGE_KEY = "service-priority-demo-profile";
+const ESSEX_DISTRICTS = [
+  "Basildon",
+  "Braintree",
+  "Brentwood",
+  "Castle Point",
+  "Chelmsford",
+  "Colchester",
+  "Epping Forest",
+  "Harlow",
+  "Maldon",
+  "Rochford",
+  "Tendring",
+  "Uttlesford",
+];
 
 export function Dashboard({ setCaseInput, setPrediction, online, chatOpen, onToggleChat }: Props) {
   const [activeTab, setActiveTab] = useState<DashboardTab>("triage");
@@ -94,8 +106,9 @@ export function Dashboard({ setCaseInput, setPrediction, online, chatOpen, onTog
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const previousQueueRef = useRef<Map<string, string> | null>(null);
-  const selectedCase = caseQueue.find((row) => row.case_id === selectedCaseId) ?? null;
   const staffProfiles = Object.values(SYNTHETIC_STAFF);
+  const visibleCaseQueue = caseQueue.filter((row) => canViewCase(currentUser, row));
+  const selectedCase = visibleCaseQueue.find((row) => row.case_id === selectedCaseId) ?? null;
 
   const activeLabel =
     activeTab === "mlops"
@@ -132,12 +145,6 @@ export function Dashboard({ setCaseInput, setPrediction, online, chatOpen, onTog
         }
         previousQueueRef.current = new Map(result.map((row) => [row.case_id, caseSnapshot(row)]));
         setCaseQueue(result);
-        const selected = result.find((row) => row.case_id === selectedCaseId) ?? result[0];
-        if (selected) {
-          setSelectedCaseId(selected.case_id);
-          setCaseInput(selected.case_request);
-          setPrediction(selected.prediction ?? null);
-        }
       });
     };
     refresh();
@@ -147,6 +154,17 @@ export function Dashboard({ setCaseInput, setPrediction, online, chatOpen, onTog
       window.clearInterval(timer);
     };
   }, [selectedCaseId, setCaseInput]);
+
+  useEffect(() => {
+    const selected = visibleCaseQueue.find((row) => row.case_id === selectedCaseId) ?? visibleCaseQueue[0] ?? null;
+    setSelectedCaseId(selected?.case_id ?? null);
+    if (selected) {
+      setCaseInput(selected.case_request);
+      setPrediction(selected.prediction ?? null);
+    } else {
+      setPrediction(null);
+    }
+  }, [currentUser?.id, caseQueue, selectedCaseId, setCaseInput, setPrediction]);
 
   useEffect(() => {
     let active = true;
@@ -393,8 +411,6 @@ export function Dashboard({ setCaseInput, setPrediction, online, chatOpen, onTog
               ? "employee-content--overview"
               : activeTab === "pipeline"
               ? "employee-content--pipeline"
-              : activeTab === "tools"
-              ? "employee-content--tools"
               : activeTab === "mlops"
               ? "employee-content--mlops"
               : "employee-content--case-record"
@@ -420,8 +436,12 @@ export function Dashboard({ setCaseInput, setPrediction, online, chatOpen, onTog
             <section className="tab-panel employee-overview" role="tabpanel">
               <section className="priority-workspace">
                 <div className="priority-inbox">
+                  <div className="authorised-view-banner">
+                    <ShieldCheck size={16} />
+                    <span>{authorisedQueueMessage(currentUser, visibleCaseQueue.length)}</span>
+                  </div>
                   <div className="priority-rows">
-                    {caseQueue.map((row) => (
+                    {visibleCaseQueue.length ? visibleCaseQueue.map((row) => (
                       <button
                         key={row.case_id}
                         type="button"
@@ -476,7 +496,13 @@ export function Dashboard({ setCaseInput, setPrediction, online, chatOpen, onTog
                           Open
                         </span>
                       </button>
-                    ))}
+                    )) : (
+                      <div className="authorised-empty-state">
+                        <ClipboardList size={24} />
+                        <strong>No authorised cases for this profile</strong>
+                        <span>Switch profile or wait for a related case to enter the queue.</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -497,7 +523,7 @@ export function Dashboard({ setCaseInput, setPrediction, online, chatOpen, onTog
                 </div>
               )}
               <TriageForm
-                caseRecord={caseQueue.find((row) => row.case_id === selectedCaseId) ?? null}
+                caseRecord={selectedCase}
                 decisionSaving={decisionSaving}
                 onAssignToSelf={assignSelectedToSelf}
                 currentUser={currentUser}
@@ -509,17 +535,6 @@ export function Dashboard({ setCaseInput, setPrediction, online, chatOpen, onTog
           {activeTab === "pipeline" && (
             <section className="tab-panel employee-pipeline-score" role="tabpanel">
               <PipelineScoreTab caseRecord={selectedCase} currentUser={currentUser} />
-            </section>
-          )}
-
-          {activeTab === "tools" && (
-            <section className="tab-panel employee-tools" role="tabpanel">
-              <RoleToolsPage
-                currentUser={currentUser}
-                onOpenDecisionSupport={() => changeTab("pipeline")}
-                onOpenQueue={() => changeTab("overview")}
-                onSignIn={signIn}
-              />
             </section>
           )}
 
@@ -599,12 +614,13 @@ function PipelineScoreTab({
   const stepOrder: DecisionStep[] = ["add", "review", "recommendation", "decision"];
   const activeStepIndex = stepOrder.indexOf(step);
   const furthestStepIndex = reviewCaseRequest ? (selectedPrediction ? (decisionReceipt ? 3 : 2) : 1) : 0;
-  const requiredReviewFields: ReviewField[] = ["service_type", "service_subtype", "district", "channel", "urgency_text"];
+  const requiredReviewFields: ReviewField[] = ["service_type", "service_subtype", "district", "channel", "source_system", "urgency_text"];
   const missingReviewFields = requiredReviewFields.filter((field) => {
     const value = reviewCaseRequest?.[field];
     return blankReviewFields.has(field) || (typeof value === "string" && !value.trim());
   });
   const roleContext = decisionRoleContext(currentUser);
+  const informationOptions = informationTypeOptions(currentUser);
 
   function goToStep(nextStep: DecisionStep) {
     if (stepOrder.indexOf(nextStep) <= furthestStepIndex) {
@@ -632,7 +648,11 @@ function PipelineScoreTab({
       const result = await postExtractCaseRequest(`${enteredText}${uploadedContext}`, defaults);
       setExtraction(result);
       setReviewCaseRequest(result.case_request);
-      setBlankReviewFields(new Set(result.defaulted_fields as ReviewField[]));
+      const blanks = new Set(result.defaulted_fields as ReviewField[]);
+      if (informationType) {
+        Object.keys(sourceFields(informationType)).forEach((field) => blanks.delete(field as ReviewField));
+      }
+      setBlankReviewFields(blanks);
       setAnalysisScore(null);
       setDecisionReceipt(null);
       setStep("review");
@@ -731,13 +751,12 @@ function PipelineScoreTab({
             Information type
             <select value={informationType} onChange={(event) => setInformationType(event.target.value)}>
               <option value="">{roleContext.sourcePlaceholder}</option>
-              <option value="resident_report">Resident report</option>
-              <option value="inspection_note">Inspection note</option>
-              <option value="email_update">Email update</option>
-              <option value="case_portal">Case portal data</option>
-              <option value="teams_referral">Teams referral</option>
+              {informationOptions.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
           </label>
+          <p className="decision-field-help">{selectedInformationHelp(informationType, informationOptions)}</p>
           <label>
             New information
             <textarea
@@ -882,88 +901,6 @@ function PipelineScoreTab({
   );
 }
 
-function RoleToolsPage({
-  currentUser,
-  onOpenDecisionSupport,
-  onOpenQueue,
-  onSignIn,
-}: {
-  currentUser: StaffMember | null;
-  onOpenDecisionSupport: () => void;
-  onOpenQueue: () => void;
-  onSignIn: () => void;
-}) {
-  const context = roleToolContext(currentUser);
-
-  return (
-    <div className="role-tools-page">
-      <section className="role-tools-hero">
-        <div>
-          <span className="employee-kicker">{currentUser ? currentUser.team : "Staff profile required"}</span>
-          <h2>{context.title}</h2>
-          <p>{context.summary}</p>
-        </div>
-        <div className="role-tools-profile">
-          {currentUser ? <img src={currentUser.avatar_url} alt="" /> : <LogIn size={28} />}
-          <div>
-            <strong>{currentUser?.name ?? "Choose a profile"}</strong>
-            <span>{currentUser?.role ?? "Open the profile menu to switch role"}</span>
-          </div>
-        </div>
-      </section>
-
-      <section className="role-tool-error" role="alert">
-        <AlertCircle size={22} />
-        <div>
-          <strong>{context.errorTitle}</strong>
-          <p>{context.errorBody}</p>
-          <code>Error: stdin is not a terminal</code>
-          <small>[Vibyra exited: 1]</small>
-        </div>
-      </section>
-
-      <section className="role-tools-grid">
-        <article className="decision-card role-tool-card">
-          <h3>What this role normally handles</h3>
-          <ul>
-            {context.tasks.map((task) => <li key={task}>{task}</li>)}
-          </ul>
-        </article>
-        <article className="decision-card role-tool-card">
-          <h3>Details to capture</h3>
-          <ul>
-            {context.evidence.map((item) => <li key={item}>{item}</li>)}
-          </ul>
-        </article>
-        <article className="decision-card role-tool-card">
-          <h3>Next safe action</h3>
-          <p>{context.nextAction}</p>
-          <div className="decision-panel-actions role-tool-actions">
-            {!currentUser && (
-              <button type="button" className="btn-secondary" onClick={onSignIn}>
-                <LogIn size={16} />
-                Choose profile
-              </button>
-            )}
-            <button type="button" className="btn-secondary" onClick={onOpenQueue}>
-              Open queue
-            </button>
-            <button type="button" className="btn-primary" onClick={onOpenDecisionSupport}>
-              <ClipboardList size={16} />
-              Decision support
-            </button>
-          </div>
-        </article>
-      </section>
-
-      <section className="role-tools-note">
-        <ShieldCheck size={17} />
-        <span>{context.guardrail}</span>
-      </section>
-    </div>
-  );
-}
-
 function DecisionSteps({
   activeStep,
   furthestStepIndex,
@@ -1063,7 +1000,12 @@ function ReviewFields({
       </label>
       <label>
         District
-        <input value={valueFor("district")} onChange={(event) => onChange("district", event.target.value)} placeholder="Enter district" />
+        <select value={valueFor("district")} onChange={(event) => onChange("district", event.target.value)}>
+          <option value="">Select Essex district</option>
+          {ESSEX_DISTRICTS.map((district) => (
+            <option key={district} value={district}>{district}</option>
+          ))}
+        </select>
       </label>
       <label>
         Channel
@@ -1073,6 +1015,17 @@ function ReviewFields({
           <option value="phone">Phone</option>
           <option value="email">Email</option>
           <option value="in_person">In person</option>
+        </select>
+      </label>
+      <label>
+        Source system
+        <select value={valueFor("source_system")} onChange={(event) => onChange("source_system", event.target.value as CaseRequest["source_system"])}>
+          <option value="">Select source</option>
+          <option value="web_form">Web form</option>
+          <option value="contact_centre">Contact centre</option>
+          <option value="shared_mailbox">Shared mailbox</option>
+          <option value="teams_referral">Teams referral</option>
+          <option value="case_portal">Case portal</option>
         </select>
       </label>
       <label>
@@ -1105,6 +1058,7 @@ function reviewFieldLabel(field: keyof CaseRequest) {
     service_subtype: "Issue",
     district: "District",
     channel: "Channel",
+    source_system: "Source",
     urgency_text: "Summary",
   };
   return labels[field] ?? clean(String(field));
@@ -1112,11 +1066,92 @@ function reviewFieldLabel(field: keyof CaseRequest) {
 
 function sourceFields(informationType: string): Partial<CaseRequest> {
   if (!informationType) return {};
+  if (informationType === "care_referral") return { source_system: "teams_referral", channel: "email", service_type: "adult_social_care" };
+  if (informationType === "safeguarding_referral") return { source_system: "teams_referral", channel: "email", service_type: "adult_social_care", vulnerability_flag: true };
+  if (informationType === "finance_assessment") return { source_system: "case_portal", channel: "web", service_type: "benefits" };
+  if (informationType === "children_family_referral") return { source_system: "teams_referral", channel: "email", service_type: "children_services", vulnerability_flag: true };
+  if (informationType === "ehcp_update") return { source_system: "case_portal", channel: "web", service_type: "children_services" };
+  if (informationType === "highways_report") return { source_system: "web_form", channel: "web", service_type: "highways" };
+  if (informationType === "highways_inspection") return { source_system: "case_portal", channel: "web", service_type: "highways" };
+  if (informationType === "recycling_site_report") return { source_system: "case_portal", channel: "web", service_type: "waste" };
+  if (informationType === "complaint_update") return { source_system: "shared_mailbox", channel: "email" };
+  if (informationType === "partner_referral") return { source_system: "shared_mailbox", channel: "email" };
   if (informationType === "inspection_note") return { source_system: "case_portal", channel: "web" };
   if (informationType === "email_update") return { source_system: "shared_mailbox", channel: "email" };
   if (informationType === "case_portal") return { source_system: "case_portal", channel: "web" };
   if (informationType === "teams_referral") return { source_system: "teams_referral", channel: "email" };
   return { source_system: "contact_centre", channel: "phone" };
+}
+
+function informationTypeOptions(profile: StaffMember | null) {
+  const role = `${profile?.role ?? ""} ${profile?.service_area ?? ""}`.toLowerCase();
+  const common = [
+    { value: "resident_report", label: "Resident report or call note", help: "Use for phone, web or front-door contact from a resident or carer." },
+    { value: "email_update", label: "Email update", help: "Use for shared mailbox updates, partner emails or resident follow-up." },
+    { value: "case_portal", label: "Case portal record", help: "Use for structured case-system information." },
+  ];
+  if (role.includes("adult social care")) {
+    return [
+      { value: "care_referral", label: "Adult care referral", help: "Referral, care-package concern, missed visit or duty update." },
+      { value: "safeguarding_referral", label: "Safeguarding concern", help: "Concern about immediate risk, abuse, neglect or vulnerable adult context." },
+      { value: "teams_referral", label: "Duty team handover", help: "Internal Teams or professional handover for adult social care." },
+      ...common,
+    ];
+  }
+  if (role.includes("financial assessment")) {
+    return [
+      { value: "finance_assessment", label: "Financial assessment update", help: "Charging, assessment, hardship or adult social care finance note." },
+      { value: "email_update", label: "Finance email update", help: "Shared mailbox or partner update about assessment progress." },
+      ...common,
+    ];
+  }
+  if (role.includes("send")) {
+    return [
+      { value: "ehcp_update", label: "EHCP or annual review update", help: "EHCP stage, school/setting response, annual review or statutory deadline." },
+      { value: "case_portal", label: "SEND case portal record", help: "Structured SEND casework record from the case portal." },
+      { value: "email_update", label: "Parent, carer or school email", help: "Email evidence from family, school or partner professional." },
+    ];
+  }
+  if (role.includes("children") || role.includes("family")) {
+    return [
+      { value: "children_family_referral", label: "Children and Families referral", help: "Hub intake, professional referral, early help request or concern wording." },
+      { value: "teams_referral", label: "Internal handover", help: "Teams/duty handover for family support or safeguarding triage." },
+      ...common,
+    ];
+  }
+  if (role.includes("highways")) {
+    return [
+      { value: "highways_report", label: "Highways resident report", help: "Road, pavement, drainage, street-lighting or public safety report." },
+      { value: "highways_inspection", label: "Inspection note or photo", help: "Inspector note, site photo, route type or safety impact." },
+      { value: "email_update", label: "Highways email update", help: "Partner, councillor or resident email about a highways defect." },
+    ];
+  }
+  if (role.includes("waste")) {
+    return [
+      { value: "recycling_site_report", label: "Recycling centre or disposal report", help: "ECC-owned site, disposal, contamination or operational issue." },
+      { value: "partner_referral", label: "District collection referral", help: "Use when the issue belongs to a district/city/borough collection service." },
+      { value: "inspection_note", label: "Site inspection note", help: "Operational or safety note from a waste/recycling site." },
+    ];
+  }
+  if (role.includes("complaints")) {
+    return [
+      { value: "complaint_update", label: "Complaint or Ombudsman update", help: "Complaint stage, directorate owner, remedy, deadline or Ombudsman risk." },
+      { value: "email_update", label: "Resident complaint email", help: "Email from resident, representative or directorate." },
+      { value: "case_portal", label: "Complaint case record", help: "Structured complaint management record." },
+    ];
+  }
+  if (role.includes("partnership")) {
+    return [
+      { value: "partner_referral", label: "District or borough partner referral", help: "Housing, revenues or local-service update needing county coordination." },
+      { value: "email_update", label: "Partner email update", help: "District, borough, councillor or voluntary-sector partner email." },
+      ...common,
+    ];
+  }
+  return common;
+}
+
+function selectedInformationHelp(value: string, options: Array<{ value: string; help: string }>) {
+  return options.find((option) => option.value === value)?.help ?? "Choose the closest source type. Leave it blank if unsure.";
 }
 
 function roleDefaultFields(profile: StaffMember | null): Partial<CaseRequest> {
@@ -1191,88 +1226,31 @@ function decisionRoleContext(profile: StaffMember | null) {
   return base;
 }
 
-function roleToolContext(profile: StaffMember | null) {
+function roleServiceTypes(profile: StaffMember | null): CaseRequest["service_type"][] {
   const role = `${profile?.role ?? ""} ${profile?.service_area ?? ""}`.toLowerCase();
-  const base = {
-    title: profile ? `${profile.role} work tools` : "Choose a staff profile",
-    summary: profile?.decision_focus ?? "Select a profile so the dashboard can show the right work context, examples and recovery actions.",
-    errorTitle: "The external tool did not open",
-    errorBody: "This usually means a terminal-only command was started in a non-interactive pane. Your dashboard data is still available here.",
-    tasks: [
-      "Check the resident or partner update is in the right service area.",
-      "Capture missing details before asking for a recommendation.",
-      "Use the model as support only; staff make the final decision.",
-    ],
-    evidence: ["Service area", "Contact channel", "Location or district", "Urgency summary", "Previous contact or repeat issue"],
-    nextAction: "Open the queue or Decision support page and continue the work in the dashboard.",
-    guardrail: "Do not delay urgent safeguarding, safety or statutory action while waiting for a tool to recover.",
-  };
+  if (!profile) return [];
+  if (role.includes("customer services") || role.includes("resident contact")) {
+    return ["adult_social_care", "children_services", "highways", "waste", "housing", "benefits", "council_tax"];
+  }
+  if (role.includes("adult social care")) return ["adult_social_care"];
+  if (role.includes("financial assessment")) return ["adult_social_care", "benefits"];
+  if (role.includes("send") || role.includes("children") || role.includes("family")) return ["children_services"];
+  if (role.includes("highways")) return ["highways"];
+  if (role.includes("waste")) return ["waste"];
+  if (role.includes("complaints")) return ["adult_social_care", "children_services", "highways", "waste", "housing", "benefits", "council_tax"];
+  if (role.includes("partnership")) return ["housing", "benefits", "council_tax"];
+  return profile.default_service_type ? [profile.default_service_type] : [];
+}
 
-  if (role.includes("adult social care") || role.includes("financial assessment")) {
-    return {
-      ...base,
-      title: profile ? `${profile.role} tools` : base.title,
-      summary: "Supports adult care triage, safeguarding review, care urgency and financial-assessment routing.",
-      tasks: ["Review referrals, care updates and provider concerns.", "Check safeguarding, vulnerability, access and carer context.", "Route urgent cases to duty or assessment teams without waiting for automation."],
-      evidence: ["Immediate risk or safeguarding wording", "Care package or missed-visit detail", "Carer stress or accessibility need", "Previous contact", "Assessment or finance deadline"],
-      nextAction: "If there is immediate risk, follow the adult social care duty process first, then record the dashboard decision.",
-    };
-  }
-  if (role.includes("send")) {
-    return {
-      ...base,
-      summary: "Supports SEND casework around EHCP stages, annual reviews, school/family updates and statutory deadlines.",
-      tasks: ["Check EHCP stage, annual review and statutory deadline pressure.", "Record school, family, social care or health updates clearly.", "Escalate placement, provision or deadline risks to the right SEND lead."],
-      evidence: ["EHCP stage", "Deadline due or overdue", "School/setting response", "Parent or carer contact", "Placement or provision risk"],
-      nextAction: "Open Decision support only after capturing the SEND stage and statutory deadline context.",
-    };
-  }
-  if (role.includes("children") || role.includes("family")) {
-    return {
-      ...base,
-      summary: "Supports Children and Families Hub intake: receiving concerns, recording safe information and routing to the right support.",
-      tasks: ["Review public, professional or family referrals.", "Capture concern wording, consent where relevant, and known family context.", "Route to advice, early help or statutory pathway using local process."],
-      evidence: ["Referrer type", "Concern or safeguarding wording", "Child/family context", "Previous contact", "Requested outcome"],
-      nextAction: "If safeguarding risk is clear, follow the Children and Families Hub process before using model support.",
-    };
-  }
-  if (role.includes("highways")) {
-    return {
-      ...base,
-      summary: "Supports Essex Highways-style enquiry and inspection work for roads, pavements, drainage and street lighting.",
-      tasks: ["Check defect location, route type and public-safety impact.", "Review duplicate reports, photos and inspection notes.", "Route urgent safety issues to inspection rather than waiting for model output."],
-      evidence: ["Exact location", "Road/pavement/drainage/street-light issue", "Photo or inspection note", "Traffic or school-route context", "Repeat reports"],
-      nextAction: "Open Decision support after confirming location and safety context.",
-    };
-  }
-  if (role.includes("waste")) {
-    return {
-      ...base,
-      summary: "Supports ECC waste disposal and recycling-centre operations rather than district kerbside collection ownership.",
-      tasks: ["Review recycling-centre, disposal, contamination or site-operation reports.", "Separate ECC-owned disposal work from district collection issues.", "Route district-owned bin collection issues to the correct partner."],
-      evidence: ["Site or facility", "Operational impact", "Contamination or disposal issue", "Access or safety concern", "Partner owner if district-led"],
-      nextAction: "If the issue is kerbside collection, record partner routing rather than treating it as an ECC-owned decision.",
-    };
-  }
-  if (role.includes("complaints")) {
-    return {
-      ...base,
-      summary: "Supports complaint handling across directorates, statutory response dates and Ombudsman-risk tracking.",
-      tasks: ["Identify complaint stage and owning directorate.", "Track statutory or agreed response date.", "Record remedy, learning and escalation risk."],
-      evidence: ["Complaint stage", "Directorate owner", "Response deadline", "Resident impact", "Ombudsman or repeat-theme risk"],
-      nextAction: "Open Decision support after confirming stage, owner and response deadline.",
-    };
-  }
-  if (role.includes("partnership")) {
-    return {
-      ...base,
-      summary: "Supports district, borough and partner coordination where housing, revenues or local services need county input.",
-      tasks: ["Confirm the partner organisation that owns the service.", "Record what county input is being requested.", "Signpost or coordinate without taking ownership of district decisions."],
-      evidence: ["Partner owner", "Requested county action", "Resident impact", "Deadline", "District housing/revenues context"],
-      nextAction: "Record the partner dependency and use Decision support only for the county follow-up decision.",
-    };
-  }
-  return base;
+function canViewCase(profile: StaffMember | null, row: CaseRecord) {
+  if (!profile) return false;
+  if (row.assigned_to?.id === profile.id) return true;
+  return roleServiceTypes(profile).includes(row.case_request.service_type);
+}
+
+function authorisedQueueMessage(profile: StaffMember | null, count: number) {
+  if (!profile) return "Sign in to see cases authorised for your staff role.";
+  return `${profile.role}: showing ${count} authorised ${count === 1 ? "case" : "cases"} for ${profile.service_area || profile.team}.`;
 }
 
 function recommendedAction(priority?: Prediction["priority"], profile?: StaffMember | null) {
@@ -1789,7 +1767,8 @@ function readSavedProfile(): StaffMember | null {
   try {
     const saved = window.localStorage.getItem(PROFILE_STORAGE_KEY);
     if (!saved) return null;
-    return JSON.parse(saved) as StaffMember;
+    const parsed = JSON.parse(saved) as StaffMember;
+    return Object.values(SYNTHETIC_STAFF).find((profile) => profile.id === parsed.id) ?? parsed;
   } catch {
     return null;
   }
