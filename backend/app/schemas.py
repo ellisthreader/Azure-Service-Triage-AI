@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 Priority = Literal["low", "medium", "high"]
@@ -64,6 +64,27 @@ class PredictionResponse(BaseModel):
     feature_attributions: list[FeatureAttribution] = []
     model_version: str
     human_review_required: bool
+
+
+class CaseExtractionRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=5000)
+    defaults: CaseRequest | None = None
+
+    @field_validator("text")
+    @classmethod
+    def require_meaningful_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Enter or upload information before extracting fields.")
+        return value
+
+
+class CaseExtractionResponse(BaseModel):
+    case_request: CaseRequest
+    confidence: float
+    field_confidence: dict[str, float]
+    extracted_fields: list[str]
+    defaulted_fields: list[str]
+    warnings: list[str] = []
 
 
 class EvidenceItem(BaseModel):

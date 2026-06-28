@@ -7,3 +7,6 @@ __pycache__/
 .DS_Store
 .env
 m365-case-links.json
+backend-dev.*.log
+frontend-dev.*.log
+frontend/vite-dev.*.log

@@ -4,7 +4,9 @@ import {
   AlertCircle,
   BarChart3,
   Bot,
+  BrainCircuit,
   ChevronDown,
+  ClipboardList,
   Clock3,
   Database,
   FileCheck2,
@@ -24,7 +26,7 @@ import {
   Upload,
   UserPlus,
 } from "lucide-react";
-import type { CaseRecord, CaseRequest, DashboardSummary, Prediction, StaffMember } from "../api";
+import type { CaseExtraction, CaseRecord, CaseRequest, DashboardSummary, DecisionReceipt, PipelineScore, Prediction, StaffMember } from "../api";
 import {
   SYNTHETIC_STAFF,
   clean,
@@ -33,17 +35,21 @@ import {
   fetchDashboard,
   fetchCaseQueue,
   postAssignToSelf,
+  postDecision,
+  postExtractCaseRequest,
+  postPipelineScore,
   pct,
 } from "../api";
 import { Badge } from "../components/primitives";
 import { TriageForm } from "../dashboard/TriageForm";
 
-type DashboardTab = "overview" | "triage" | "mlops";
+type DashboardTab = "overview" | "triage" | "pipeline" | "mlops";
 type MlopsSection = "summary" | "data" | "azure" | "model" | "monitoring" | "governance";
 
 const TABS: Array<{ id: DashboardTab; label: string; icon: ReactNode; helper: string }> = [
   { id: "overview", label: "Today", icon: <Home size={16} />, helper: "Priority list" },
   { id: "triage", label: "Case details", icon: <ShieldCheck size={16} />, helper: "Review record" },
+  { id: "pipeline", label: "Decision support", icon: <ClipboardList size={16} />, helper: "Analyse information" },
   { id: "mlops", label: "MLOps", icon: <LockKeyhole size={16} />, helper: "Manager view" },
 ];
 
@@ -86,6 +92,7 @@ export function Dashboard({ setCaseInput, setPrediction, online, chatOpen, onTog
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const previousQueueRef = useRef<Map<string, string> | null>(null);
+  const selectedCase = caseQueue.find((row) => row.case_id === selectedCaseId) ?? null;
 
   const activeLabel =
     activeTab === "mlops"
@@ -248,7 +255,17 @@ export function Dashboard({ setCaseInput, setPrediction, online, chatOpen, onTog
                 onClick={() => changeTab(tab.id)}
               >
                 {tab.icon}
-                <span>{tab.label}</span>
+                <span className={tab.id === "pipeline" ? "employee-nav-label-stacked" : undefined}>
+                  {tab.id === "pipeline" ? (
+                    <>
+                      Decision
+                      <br />
+                      support
+                    </>
+                  ) : (
+                    tab.label
+                  )}
+                </span>
                 <small>{tab.helper}</small>
                 {tab.id === "mlops" && <ChevronDown className="employee-nav-caret" size={15} />}
               </button>
@@ -337,6 +354,8 @@ export function Dashboard({ setCaseInput, setPrediction, online, chatOpen, onTog
           className={`employee-content ${
             activeTab === "overview"
               ? "employee-content--overview"
+              : activeTab === "pipeline"
+              ? "employee-content--pipeline"
               : activeTab === "mlops"
               ? "employee-content--mlops"
               : "employee-content--case-record"
@@ -448,6 +467,12 @@ export function Dashboard({ setCaseInput, setPrediction, online, chatOpen, onTog
             </section>
           )}
 
+          {activeTab === "pipeline" && (
+            <section className="tab-panel employee-pipeline-score" role="tabpanel">
+              <PipelineScoreTab caseRecord={selectedCase} currentUser={currentUser} />
+            </section>
+          )}
+
           {activeTab === "mlops" && (
             <section className="tab-panel employee-mlops" role="tabpanel">
               <ManagerMlopsTab
@@ -473,6 +498,497 @@ export function Dashboard({ setCaseInput, setPrediction, online, chatOpen, onTog
       </main>
     </div>
   );
+}
+
+function PipelineScoreTab({
+  caseRecord,
+  currentUser,
+}: {
+  caseRecord: CaseRecord | null;
+  currentUser: StaffMember | null;
+}) {
+  type DecisionStep = "add" | "review" | "recommendation" | "decision";
+  type ReviewField = keyof CaseRequest;
+  const [informationType, setInformationType] = useState("");
+  const [operationalText, setOperationalText] = useState("");
+  const [uploadedInfoName, setUploadedInfoName] = useState<string | null>(null);
+  const [extraction, setExtraction] = useState<CaseExtraction | null>(null);
+  const [reviewCaseRequest, setReviewCaseRequest] = useState<CaseRequest | null>(null);
+  const [blankReviewFields, setBlankReviewFields] = useState<Set<ReviewField>>(new Set());
+  const [analysisScore, setAnalysisScore] = useState<PipelineScore | null>(null);
+  const [step, setStep] = useState<DecisionStep>("add");
+  const [extracting, setExtracting] = useState(false);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [decisionSaving, setDecisionSaving] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [finalPriority, setFinalPriority] = useState<Prediction["priority"]>("medium");
+  const [actionTaken, setActionTaken] = useState("");
+  const [overrideReason, setOverrideReason] = useState("");
+  const [decisionReceipt, setDecisionReceipt] = useState<DecisionReceipt | null>(null);
+  const analysisUploadRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setOperationalText("");
+    setUploadedInfoName(null);
+    setExtraction(null);
+    setReviewCaseRequest(null);
+    setBlankReviewFields(new Set());
+    setAnalysisScore(null);
+    setAnalysisError(null);
+    setDecisionReceipt(null);
+    setStep("add");
+  }, [caseRecord?.case_id]);
+
+  const currentScore = analysisScore;
+  const selectedPrediction = currentScore?.prediction ?? null;
+  const predictability = currentScore?.predictability.score ?? selectedPrediction?.confidence ?? 0;
+  const rating = currentScore?.predictability.rating ?? "review";
+  const busy = extracting || analysisLoading || decisionSaving;
+  const hasNewInformation = Boolean(operationalText.trim() || uploadedInfoName);
+  const finalDiffersFromModel = Boolean(selectedPrediction && finalPriority !== selectedPrediction.priority);
+  const stepOrder: DecisionStep[] = ["add", "review", "recommendation", "decision"];
+  const activeStepIndex = stepOrder.indexOf(step);
+  const furthestStepIndex = reviewCaseRequest ? (selectedPrediction ? (decisionReceipt ? 3 : 2) : 1) : 0;
+  const requiredReviewFields: ReviewField[] = ["service_type", "service_subtype", "district", "channel", "urgency_text"];
+  const missingReviewFields = requiredReviewFields.filter((field) => {
+    const value = reviewCaseRequest?.[field];
+    return blankReviewFields.has(field) || (typeof value === "string" && !value.trim());
+  });
+
+  function goToStep(nextStep: DecisionStep) {
+    if (stepOrder.indexOf(nextStep) <= furthestStepIndex) {
+      setStep(nextStep);
+    }
+  }
+
+  function goBack() {
+    setStep(stepOrder[Math.max(activeStepIndex - 1, 0)]);
+  }
+
+  async function extractInformation() {
+    if (!caseRecord) return;
+    const enteredText = operationalText.trim();
+    const uploadedContext = uploadedInfoName ? ` Uploaded supporting file: ${uploadedInfoName}.` : "";
+    const defaults: CaseRequest = {
+      ...caseRecord.case_request,
+      ...sourceFields(informationType),
+    };
+
+    setExtracting(true);
+    setAnalysisError(null);
+    try {
+      const result = await postExtractCaseRequest(`${enteredText}${uploadedContext}`, defaults);
+      setExtraction(result);
+      setReviewCaseRequest(result.case_request);
+      setBlankReviewFields(new Set(result.defaulted_fields as ReviewField[]));
+      setAnalysisScore(null);
+      setDecisionReceipt(null);
+      setStep("review");
+    } catch (problem) {
+      setAnalysisError(problem instanceof Error ? problem.message : "The information could not be extracted.");
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  async function runAnalysis() {
+    if (!reviewCaseRequest) return;
+    if (missingReviewFields.length) {
+      setAnalysisError(`Complete ${missingReviewFields.map(reviewFieldLabel).join(", ")} before generating a recommendation.`);
+      return;
+    }
+    setAnalysisLoading(true);
+    setAnalysisError(null);
+    try {
+      const result = await postPipelineScore(reviewCaseRequest);
+      setAnalysisScore(result);
+      setFinalPriority(result.prediction.priority);
+      setStep("recommendation");
+    } catch (analysisProblem) {
+      setAnalysisError(analysisProblem instanceof Error ? analysisProblem.message : "The recommendation could not be generated.");
+    } finally {
+      setAnalysisLoading(false);
+    }
+  }
+
+  async function saveStaffDecision() {
+    if (!caseRecord || !reviewCaseRequest || !selectedPrediction) return;
+    if (finalDiffersFromModel && !overrideReason.trim()) {
+      setAnalysisError("Add an override reason before recording a different final priority.");
+      return;
+    }
+    setDecisionSaving(true);
+    setAnalysisError(null);
+    try {
+      const receipt = await postDecision(caseRecord.case_id, {
+        final_priority: finalPriority,
+        override_reason: overrideReason,
+        action_taken: actionTaken,
+        officer_id: currentUser?.id ?? "demo.officer",
+        case_request: reviewCaseRequest,
+        prediction: selectedPrediction,
+      });
+      setDecisionReceipt(receipt);
+      setStep("decision");
+    } catch (problem) {
+      setAnalysisError(problem instanceof Error ? problem.message : "The staff decision could not be recorded.");
+    } finally {
+      setDecisionSaving(false);
+    }
+  }
+
+  function updateReviewField<K extends keyof CaseRequest>(field: K, value: CaseRequest[K]) {
+    setReviewCaseRequest((current) => (current ? { ...current, [field]: value } : current));
+    setBlankReviewFields((current) => {
+      const next = new Set(current);
+      if (typeof value === "string" && !value.trim()) {
+        next.add(field);
+      } else {
+        next.delete(field);
+      }
+      return next;
+    });
+  }
+
+  return (
+    <div className="decision-page">
+      <section className="decision-header">
+        <div>
+          <span className="employee-kicker">Staff decision support</span>
+          <h2>Decision support</h2>
+          <p>Paste new case information, check the fields, then generate a staff-reviewed recommendation.</p>
+        </div>
+        <div className={`pipeline-rating ${rating}`}>
+          <span>{analysisScore ? "Model confidence" : "Status"}</span>
+          <strong>{analysisScore ? pct(predictability) : "Waiting"}</strong>
+          <small>{analysisScore ? clean(rating) : "Add information"}</small>
+        </div>
+      </section>
+
+      <DecisionSteps activeStep={step} furthestStepIndex={furthestStepIndex} onStepChange={goToStep} />
+
+      {caseRecord && <DecisionCaseStrip caseRecord={caseRecord} />}
+
+      {(step === "add" || step === "recommendation") && (
+      <section className="decision-tab-panel">
+        {step === "add" && (
+        <section className="decision-card decision-input-card">
+          <h3>1. Add information</h3>
+          <label>
+            Information type
+            <select value={informationType} onChange={(event) => setInformationType(event.target.value)}>
+              <option value="">Choose if known</option>
+              <option value="resident_report">Resident report</option>
+              <option value="inspection_note">Inspection note</option>
+              <option value="email_update">Email update</option>
+              <option value="case_portal">Case portal data</option>
+              <option value="teams_referral">Teams referral</option>
+            </select>
+          </label>
+          <label>
+            New information
+            <textarea
+              value={operationalText}
+              onChange={(event) => setOperationalText(event.target.value)}
+              placeholder="Paste a resident report, inspection note, email, or case update..."
+            />
+          </label>
+          <div className="decision-upload-row">
+            <button type="button" onClick={() => analysisUploadRef.current?.click()}>
+              <Upload size={16} />
+              Add file
+            </button>
+            <span>{uploadedInfoName ?? "Optional supporting file"}</span>
+            <input
+              ref={analysisUploadRef}
+              type="file"
+              accept=".txt,.csv,.json,.pdf,.doc,.docx,.eml"
+              className="sr-only"
+              onChange={(event) => setUploadedInfoName(event.target.files?.[0]?.name ?? null)}
+            />
+          </div>
+          <button type="button" className="btn-primary" disabled={!caseRecord || busy || !hasNewInformation} onClick={extractInformation}>
+            <ClipboardList size={16} />
+            {extracting ? "Extracting..." : "Extract fields"}
+          </button>
+        </section>
+        )}
+
+        {step === "recommendation" && (
+        <section className="decision-card decision-output-card">
+          <h3>3. Model recommendation</h3>
+          {selectedPrediction ? (
+            <div className="decision-recommendation">
+              <span>Suggested priority</span>
+              <strong className={selectedPrediction.priority}>{clean(selectedPrediction.priority)}</strong>
+              <p>{recommendedAction(selectedPrediction.priority)}</p>
+              <small>Confidence {pct(selectedPrediction.confidence)} · {selectedPrediction.human_review_required ? "Staff review required" : "Standard review"}</small>
+            </div>
+          ) : (
+            <div className="decision-empty-state">
+              <BrainCircuit size={22} />
+              <span>Review extracted fields, then generate a recommendation.</span>
+            </div>
+          )}
+          <div className="decision-panel-actions">
+            <button type="button" className="btn-secondary" disabled={busy} onClick={goBack}>
+              Back
+            </button>
+            <button type="button" className="btn-primary" disabled={!selectedPrediction} onClick={() => setStep("decision")}>
+              Continue
+            </button>
+          </div>
+        </section>
+        )}
+      </section>
+      )}
+
+      {analysisError && (
+        <div className="error-banner" role="alert">
+          <AlertCircle size={17} />
+          <span>Analysis failed: {analysisError}. Check the API endpoint, then try again.</span>
+        </div>
+      )}
+
+      {step === "review" && reviewCaseRequest && (
+        <section className="decision-card decision-review-card">
+          <div className="decision-section-head">
+            <div>
+              <h3>2. Review extracted fields</h3>
+              <p>Complete the blank fields. The model only runs after staff review.</p>
+            </div>
+            <Badge label={missingReviewFields.length ? `${missingReviewFields.length} to complete` : "Ready"} />
+          </div>
+          <ReviewFields request={reviewCaseRequest} blankFields={blankReviewFields} onChange={updateReviewField} />
+          {missingReviewFields.length ? (
+            <div className="decision-warning-list">
+              <span>Complete the blank fields before generating a recommendation.</span>
+            </div>
+          ) : null}
+          <div className="decision-panel-actions">
+            <button type="button" className="btn-secondary" disabled={busy} onClick={goBack}>
+              Back
+            </button>
+            <button type="button" className="btn-primary" disabled={busy || missingReviewFields.length > 0} onClick={runAnalysis}>
+              <BrainCircuit size={16} />
+              {analysisLoading ? "Generating..." : "Generate recommendation"}
+            </button>
+          </div>
+        </section>
+      )}
+
+      {step === "decision" && selectedPrediction && (
+        <section className="decision-card decision-final-card">
+          <div className="decision-section-head">
+            <div>
+              <h3>4. Staff final decision</h3>
+              <p>Advisory only. Staff must apply policy and professional judgement.</p>
+            </div>
+            {decisionReceipt && <Badge label={decisionReceipt.status} />}
+          </div>
+          <div className="segmented">
+            {(["high", "medium", "low"] as const).map((priority) => (
+              <button
+                key={priority}
+                type="button"
+                className={finalPriority === priority ? "selected" : ""}
+                onClick={() => setFinalPriority(priority)}
+              >
+                {priority}
+              </button>
+            ))}
+          </div>
+          <label>
+            Action taken
+            <input value={actionTaken} onChange={(event) => setActionTaken(event.target.value)} placeholder="e.g. Escalated to duty manager" />
+          </label>
+          {finalDiffersFromModel && (
+            <label>
+              Override reason
+              <textarea value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} placeholder="Explain why staff final priority differs from the model recommendation." />
+            </label>
+          )}
+          <div className="decision-panel-actions">
+            <button type="button" className="btn-secondary" disabled={busy} onClick={goBack}>
+              Back
+            </button>
+            <button type="button" className="btn-primary" disabled={busy} onClick={saveStaffDecision}>
+              <FileCheck2 size={16} />
+              {decisionSaving ? "Recording..." : "Record staff decision"}
+            </button>
+          </div>
+          {decisionReceipt && (
+            <div className="decision-receipt">
+              <strong>Recorded</strong>
+              <span>{decisionReceipt.audit_id} · final priority {clean(decisionReceipt.final_priority)}</span>
+            </div>
+          )}
+        </section>
+      )}
+    </div>
+  );
+}
+
+function DecisionSteps({
+  activeStep,
+  furthestStepIndex,
+  onStepChange,
+}: {
+  activeStep: "add" | "review" | "recommendation" | "decision";
+  furthestStepIndex: number;
+  onStepChange: (step: "add" | "review" | "recommendation" | "decision") => void;
+}) {
+  const steps = [
+    ["add", "Add info"],
+    ["review", "Review fields"],
+    ["recommendation", "Recommendation"],
+    ["decision", "Final decision"],
+  ] as const;
+  const activeIndex = steps.findIndex(([id]) => id === activeStep);
+
+  return (
+    <nav className="decision-steps" aria-label="Decision support steps">
+      {steps.map(([id, label], index) => {
+        const available = index <= furthestStepIndex;
+        const selected = id === activeStep;
+        return (
+          <button
+            key={id}
+            type="button"
+            className={`${index <= activeIndex ? "active" : ""} ${selected ? "selected" : ""}`}
+            disabled={!available}
+            onClick={() => onStepChange(id)}
+            aria-current={selected ? "step" : undefined}
+          >
+            <i>{index + 1}</i>
+            {label}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+function DecisionCaseStrip({ caseRecord }: { caseRecord: CaseRecord }) {
+  return (
+    <section className="decision-case-strip" aria-label="Selected case">
+      <div>
+        <span>Case</span>
+        <strong>{caseRecord.case_id}</strong>
+      </div>
+      <div>
+        <span>Service</span>
+        <strong>{caseRecord.service_label}</strong>
+      </div>
+      <div>
+        <span>Current queue</span>
+        <strong>{clean(caseRecord.risk)}</strong>
+      </div>
+      <div>
+        <span>Status</span>
+        <strong>{caseRecord.status}</strong>
+      </div>
+      <div>
+        <span>Assigned</span>
+        <strong>{caseRecord.assigned_to?.name ?? "Unassigned"}</strong>
+      </div>
+    </section>
+  );
+}
+
+function ReviewFields({
+  request,
+  blankFields,
+  onChange,
+}: {
+  request: CaseRequest;
+  blankFields: Set<keyof CaseRequest>;
+  onChange: <K extends keyof CaseRequest>(field: K, value: CaseRequest[K]) => void;
+}) {
+  const valueFor = <K extends keyof CaseRequest>(field: K) => (blankFields.has(field) ? "" : String(request[field]));
+
+  return (
+    <div className="decision-review-grid">
+      <label>
+        Service
+        <select value={valueFor("service_type")} onChange={(event) => onChange("service_type", event.target.value as CaseRequest["service_type"])}>
+          <option value="">Select service</option>
+          <option value="housing">Housing</option>
+          <option value="adult_social_care">Adult social care</option>
+          <option value="highways">Highways</option>
+          <option value="waste">Waste</option>
+          <option value="benefits">Benefits</option>
+          <option value="council_tax">Council tax</option>
+          <option value="children_services">Children services</option>
+        </select>
+      </label>
+      <label>
+        Issue
+        <input value={valueFor("service_subtype")} onChange={(event) => onChange("service_subtype", event.target.value)} placeholder="e.g. urgent repair, missed collection" />
+      </label>
+      <label>
+        District
+        <input value={valueFor("district")} onChange={(event) => onChange("district", event.target.value)} placeholder="Enter district" />
+      </label>
+      <label>
+        Channel
+        <select value={valueFor("channel")} onChange={(event) => onChange("channel", event.target.value as CaseRequest["channel"])}>
+          <option value="">Select channel</option>
+          <option value="web">Web</option>
+          <option value="phone">Phone</option>
+          <option value="email">Email</option>
+          <option value="in_person">In person</option>
+        </select>
+      </label>
+      <label>
+        Days open
+        <input type="number" min={0} max={365} value={request.days_open} onChange={(event) => onChange("days_open", Number(event.target.value))} />
+      </label>
+      <label>
+        Previous contacts
+        <input type="number" min={0} max={50} value={request.previous_contacts} onChange={(event) => onChange("previous_contacts", Number(event.target.value))} />
+      </label>
+      <label className="decision-check">
+        <input type="checkbox" checked={request.vulnerability_flag} onChange={(event) => onChange("vulnerability_flag", event.target.checked)} />
+        Vulnerable resident
+      </label>
+      <label className="decision-check">
+        <input type="checkbox" checked={request.accessibility_need} onChange={(event) => onChange("accessibility_need", event.target.checked)} />
+        Accessibility need
+      </label>
+      <label className="decision-review-notes">
+        Summary for model
+        <textarea value={valueFor("urgency_text")} onChange={(event) => onChange("urgency_text", event.target.value)} placeholder="Short summary of what has been reported" />
+      </label>
+    </div>
+  );
+}
+
+function reviewFieldLabel(field: keyof CaseRequest) {
+  const labels: Partial<Record<keyof CaseRequest, string>> = {
+    service_type: "Service",
+    service_subtype: "Issue",
+    district: "District",
+    channel: "Channel",
+    urgency_text: "Summary",
+  };
+  return labels[field] ?? clean(String(field));
+}
+
+function sourceFields(informationType: string): Partial<CaseRequest> {
+  if (!informationType) return {};
+  if (informationType === "inspection_note") return { source_system: "case_portal", channel: "web" };
+  if (informationType === "email_update") return { source_system: "shared_mailbox", channel: "email" };
+  if (informationType === "case_portal") return { source_system: "case_portal", channel: "web" };
+  if (informationType === "teams_referral") return { source_system: "teams_referral", channel: "email" };
+  return { source_system: "contact_centre", channel: "phone" };
+}
+
+function recommendedAction(priority?: Prediction["priority"]) {
+  if (priority === "high") return "Escalate for same-day officer review and check safeguarding or service-risk evidence.";
+  if (priority === "medium") return "Prioritise for duty-team review after urgent cases and request any missing information.";
+  if (priority === "low") return "Keep in the standard queue unless staff identify new risk evidence.";
+  return "Enter or upload information, then run the ML analysis.";
 }
 
 function ManagerMlopsTab({

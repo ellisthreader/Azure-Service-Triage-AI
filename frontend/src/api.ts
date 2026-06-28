@@ -218,6 +218,57 @@ export type DashboardSummary = {
   audit?: AuditSummary;
 };
 
+export type PipelineScore = {
+  prediction: Prediction;
+  quality: {
+    accuracy: number;
+    macro_f1: number;
+    high_priority_recall: number;
+    validation_rows: number;
+    training_rows: number;
+    gate: string;
+  };
+  predicted_class_metrics: {
+    label: Prediction["priority"];
+    precision: number;
+    recall: number;
+    f1_score: number;
+    support: number;
+  };
+  cohort_evidence: {
+    feature: string;
+    value: string;
+    rows: number;
+    accuracy: number;
+    high_priority_rate: number;
+  }[];
+  predictability: {
+    score: number;
+    rating: "strong" | "moderate" | "review";
+    confidence: number;
+    probability_margin: number;
+    explanation: string;
+  };
+  review: {
+    human_review_required: boolean;
+    note: string;
+  };
+  model: {
+    name: string;
+    version: string;
+    data: string;
+  };
+};
+
+export type CaseExtraction = {
+  case_request: CaseRequest;
+  confidence: number;
+  field_confidence: Record<string, number>;
+  extracted_fields: string[];
+  defaulted_fields: string[];
+  warnings: string[];
+};
+
 export type ChatMessage = { role: "user" | "assistant"; content: string };
 
 export type ChatResponse = {
@@ -359,6 +410,41 @@ export async function postPredict(payload: CaseRequest): Promise<Prediction> {
   });
   if (!response.ok) throw new Error(`API returned ${response.status}`);
   return (await response.json()) as Prediction;
+}
+
+export async function postPipelineScore(payload: CaseRequest): Promise<PipelineScore> {
+  const response = await fetch(`${API_BASE}/pipeline/score`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error(`API returned ${response.status}`);
+  return (await response.json()) as PipelineScore;
+}
+
+export async function postExtractCaseRequest(text: string, defaults?: CaseRequest): Promise<CaseExtraction> {
+  const response = await fetch(`${API_BASE}/pipeline/extract`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, defaults }),
+  });
+  if (!response.ok) throw new Error(await apiErrorMessage(response));
+  return (await response.json()) as CaseExtraction;
+}
+
+async function apiErrorMessage(response: Response): Promise<string> {
+  try {
+    const body = await response.json();
+    if (typeof body.detail === "string") {
+      return body.detail;
+    }
+    if (Array.isArray(body.detail) && body.detail[0]?.msg) {
+      return body.detail[0].msg;
+    }
+  } catch {
+    // Fall through to the status fallback.
+  }
+  return `API returned ${response.status}`;
 }
 
 export async function postChat(

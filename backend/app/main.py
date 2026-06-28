@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import re
 import time
 from pathlib import Path
 
@@ -18,6 +19,8 @@ from .model_service import ModelService
 from .monitoring import metrics_summary, record_prediction
 from .schemas import (
     ActivityItem,
+    CaseExtractionRequest,
+    CaseExtractionResponse,
     CaseRequest,
     CaseRecord,
     ChatRequest,
@@ -1216,6 +1219,97 @@ def predict(payload: CaseRequest) -> PredictionResponse:
     return PredictionResponse(**result)
 
 
+@app.post("/pipeline/score")
+def pipeline_score(payload: CaseRequest) -> dict[str, object]:
+    prediction = model_service.predict(payload)
+    evaluation = read_json(ROOT / "ml" / "artifacts" / "evaluation.json")
+    gate_summary = read_json(ROOT / "ml" / "artifacts" / "gate_summary.json")
+    metadata = read_json(ROOT / "ml" / "artifacts" / "model_metadata.json")
+
+    probabilities = prediction.get("class_probabilities", {})
+    probability_values = sorted(
+        [float(value) for value in probabilities.values() if isinstance(value, (int, float))],
+        reverse=True,
+    )
+    confidence = float(prediction.get("confidence", 0))
+    probability_margin = probability_values[0] - probability_values[1] if len(probability_values) > 1 else confidence
+    predicted_class = str(prediction.get("priority", "medium"))
+    class_report = evaluation.get("classification_report", {})
+    class_metrics = class_report.get(predicted_class, {}) if isinstance(class_report, dict) else {}
+    if not isinstance(class_metrics, dict):
+        class_metrics = {}
+
+    cohort_evidence = pipeline_score_cohorts(payload, evaluation)
+    accuracy = metric_float(evaluation.get("accuracy"))
+    macro_f1 = metric_float(evaluation.get("macro_f1"))
+    high_priority_recall = metric_float(gate_summary.get("high_priority_recall"))
+    class_precision = metric_float(class_metrics.get("precision"), accuracy)
+    class_recall = metric_float(class_metrics.get("recall"), accuracy)
+    class_f1 = metric_float(class_metrics.get("f1-score"), macro_f1)
+    class_support = metric_float(class_metrics.get("support"))
+    cohort_accuracy_values = [
+        float(row["accuracy"])
+        for row in cohort_evidence
+        if isinstance(row.get("accuracy"), (int, float))
+    ]
+    cohort_accuracy = (
+        sum(cohort_accuracy_values) / len(cohort_accuracy_values)
+        if cohort_accuracy_values
+        else float(evaluation.get("accuracy", 0) or 0)
+    )
+    predictability_score = round(
+        (confidence * 0.45)
+        + (max(0.0, min(probability_margin, 1.0)) * 0.25)
+        + (class_precision * 0.2)
+        + (cohort_accuracy * 0.1),
+        4,
+    )
+    rating = "strong" if predictability_score >= 0.85 else "moderate" if predictability_score >= 0.7 else "review"
+
+    return {
+        "prediction": prediction,
+        "quality": {
+            "accuracy": accuracy,
+            "macro_f1": macro_f1,
+            "high_priority_recall": high_priority_recall,
+            "validation_rows": int(metric_float(evaluation.get("validation_rows") or metadata.get("validation_rows"))),
+            "training_rows": int(metric_float(metadata.get("training_rows"))),
+            "gate": gate_summary.get("high_priority_recall_gate", "review"),
+        },
+        "predicted_class_metrics": {
+            "label": predicted_class,
+            "precision": class_precision,
+            "recall": class_recall,
+            "f1_score": class_f1,
+            "support": class_support,
+        },
+        "cohort_evidence": cohort_evidence,
+        "predictability": {
+            "score": predictability_score,
+            "rating": rating,
+            "confidence": confidence,
+            "probability_margin": round(probability_margin, 4),
+            "explanation": "Predictability combines this response confidence, class probability margin, measured class precision, and matching validation cohort accuracy.",
+        },
+        "review": {
+            "human_review_required": prediction.get("human_review_required", True) or rating != "strong",
+            "note": "Measured accuracy comes from validation data. A new unlabeled case has predictability and confidence, not known accuracy, until a human outcome is recorded.",
+        },
+        "model": {
+            "name": metadata.get("model_name", "service-priority-ai-baseline"),
+            "version": prediction.get("model_version") or metadata.get("model_version", "0.1.0"),
+            "data": gate_summary.get("data", "synthetic"),
+        },
+    }
+
+
+@app.post("/pipeline/extract", response_model=CaseExtractionResponse)
+def extract_case_request(payload: CaseExtractionRequest) -> CaseExtractionResponse:
+    heuristic_result = extract_case_fields(payload.text, payload.defaults)
+    openai_result = extract_case_fields_with_openai(payload.text, payload.defaults, heuristic_result)
+    return CaseExtractionResponse(**(openai_result or heuristic_result))
+
+
 @app.post("/chat", response_model=ChatResponse)
 def chat(payload: ChatRequest) -> ChatResponse:
     result = chat_assistant.respond(payload.message, payload.case_context)
@@ -1828,6 +1922,353 @@ def read_m365_case_links() -> dict[str, object]:
 
 def item_slug(value: str) -> str:
     return value.lower().replace("&", "and").replace("/", "-").replace(" ", "-")
+
+
+SERVICE_RULES = {
+    "housing": ["housing", "tenant", "repair", "damp", "mould", "leak", "fire risk", "burning smell", "meter cupboard", "homeless", "temporary accommodation"],
+    "adult_social_care": ["adult social care", "care package", "carer", "safeguarding adult", "missed visit", "support package"],
+    "highways": ["highway", "road", "pothole", "streetlight", "pavement", "traffic", "school route"],
+    "waste": ["waste", "bin", "collection", "recycling", "missed collection", "fly tipping"],
+    "benefits": ["benefit", "rent arrears", "hardship", "universal credit", "housing benefit", "financial support"],
+    "council_tax": ["council tax", "bill", "billing", "arrears", "instalment", "single person discount"],
+    "children_services": ["children services", "family support", "child safeguarding", "safeguarding child", "mash", "school referral", "early help"],
+}
+
+DISTRICTS = [
+    "Basildon",
+    "Braintree",
+    "Brentwood",
+    "Castle Point",
+    "Chelmsford",
+    "Colchester",
+    "Epping Forest",
+    "Harlow",
+    "Maldon",
+    "Rochford",
+    "Tendring",
+    "Uttlesford",
+]
+
+
+def extract_case_fields_with_openai(
+    text: str,
+    defaults: CaseRequest | None,
+    fallback: dict[str, object],
+) -> dict[str, object] | None:
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    enabled = os.getenv("OPENAI_EXTRACTION_ENABLED", "true").strip().lower() not in {"0", "false", "no"}
+    if not api_key or not enabled:
+        return None
+
+    model = os.getenv("OPENAI_EXTRACTION_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
+    base = defaults or CaseRequest()
+    allowed_fields = set(base.model_dump().keys())
+    system_prompt = (
+        "Extract council case fields from staff supplied operational text. "
+        "Return JSON only with a case_request object containing only known case fields, "
+        "a field_confidence object from 0 to 1, extracted_fields, defaulted_fields, and warnings. "
+        "Do not make final decisions; this supports staff review."
+    )
+    user_payload = {
+        "text": text,
+        "defaults": base.model_dump(),
+        "allowed_fields": sorted(allowed_fields),
+    }
+
+    try:
+        response = httpx.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": json.dumps(user_payload)},
+                ],
+                "response_format": {"type": "json_object"},
+                "temperature": 0,
+            },
+            timeout=15,
+        )
+        response.raise_for_status()
+        content = response.json()["choices"][0]["message"]["content"]
+        extracted_payload = json.loads(content)
+        return normalize_openai_extraction(extracted_payload, base, fallback)
+    except (httpx.HTTPError, KeyError, TypeError, ValueError):
+        return None
+
+
+def normalize_openai_extraction(
+    extracted_payload: dict[str, object],
+    base: CaseRequest,
+    fallback: dict[str, object],
+) -> dict[str, object]:
+    allowed_fields = set(base.model_dump().keys())
+    model_fields = extracted_payload.get("case_request", extracted_payload)
+    if not isinstance(model_fields, dict):
+        raise ValueError("OpenAI extraction did not return a case_request object.")
+
+    values = base.model_dump()
+    values.update({key: value for key, value in model_fields.items() if key in allowed_fields})
+    case_request = CaseRequest(**values)
+
+    field_confidence = extracted_payload.get("field_confidence")
+    if not isinstance(field_confidence, dict):
+        field_confidence = fallback.get("field_confidence", {})
+    normalized_confidence = {
+        key: round(float(value), 4)
+        for key, value in field_confidence.items()
+        if key in allowed_fields and isinstance(value, (int, float))
+    }
+
+    extracted_fields = extracted_payload.get("extracted_fields")
+    if not isinstance(extracted_fields, list):
+        extracted_fields = fallback.get("extracted_fields", [])
+    extracted = sorted({str(field) for field in extracted_fields if str(field) in allowed_fields})
+    defaulted = [field for field in case_request.model_dump().keys() if field not in extracted]
+
+    warnings = extracted_payload.get("warnings")
+    if not isinstance(warnings, list):
+        warnings = []
+    warnings = [str(warning) for warning in warnings[:5]]
+    warnings.append("OpenAI extracted these fields; staff should review before generating a recommendation.")
+
+    confidence = round(
+        sum(normalized_confidence.values()) / max(len(normalized_confidence), 1),
+        4,
+    )
+    return {
+        "case_request": case_request.model_dump(),
+        "confidence": confidence,
+        "field_confidence": normalized_confidence,
+        "extracted_fields": extracted,
+        "defaulted_fields": defaulted,
+        "warnings": warnings,
+    }
+
+
+def extract_case_fields(text: str, defaults: CaseRequest | None) -> dict[str, object]:
+    normalized = text.lower()
+    base = defaults or CaseRequest()
+    values = base.model_dump()
+    extracted: set[str] = set()
+    warnings: list[str] = []
+    field_confidence: dict[str, float] = {}
+
+    service_type, service_confidence = infer_service_type(normalized, base.service_type)
+    values["service_type"] = service_type
+    values["service_subtype"] = infer_service_subtype(service_type, normalized)
+    mark_field("service_type", service_confidence, extracted, field_confidence, warnings, service_confidence >= 0.7)
+    mark_field("service_subtype", 0.72 if service_confidence >= 0.7 else 0.5, extracted, field_confidence, warnings, service_confidence >= 0.7)
+
+    district_match = next((name for name in DISTRICTS if name.lower() in normalized), None)
+    district = district_match or base.district
+    values["district"] = district
+    mark_field("district", 0.86 if district_match else 0.45, extracted, field_confidence, warnings, district_match is not None)
+
+    source_system, channel = infer_source(normalized, base.source_system, base.channel)
+    values["source_system"] = source_system
+    values["channel"] = channel
+    mark_field("source_system", 0.82 if source_system != base.source_system else 0.5, extracted, field_confidence, warnings, source_system != base.source_system)
+    mark_field("channel", 0.82 if channel != base.channel else 0.5, extracted, field_confidence, warnings, channel != base.channel)
+
+    values["vulnerability_flag"] = any_signal(normalized, ["vulnerable", "safeguarding", "elderly", "disabled", "children", "risk to resident"])
+    values["accessibility_need"] = any_signal(normalized, ["accessibility", "accessible", "interpreter", "large print", "hearing", "wheelchair", "phone contact", "contact by phone"])
+    values["duplicate_signal"] = any_signal(normalized, ["again", "repeated", "duplicate", "several reports", "multiple reports", "previously reported"])
+    values["deprivation_band"] = infer_deprivation_band(normalized, district, base.deprivation_band)
+    for field in ["vulnerability_flag", "accessibility_need", "duplicate_signal", "deprivation_band"]:
+        changed = values[field] != getattr(base, field)
+        mark_field(field, 0.78 if changed else 0.5, extracted, field_confidence, warnings, changed)
+
+    days_open_signal = first_number(normalized, [r"(\d+)\s+days?\s+open", r"open\s+for\s+(\d+)\s+days?", r"open\s+(\d+)\s+days?"])
+    previous_contacts_signal = first_number(normalized, [r"(\d+|one|two|three|four|five)\s+previous\s+contacts?", r"contacted\s+(\d+|one|two|three|four|five)\s+times?"])
+    values["days_open"] = bounded_int(days_open_signal, base.days_open, 0, 365)
+    values["previous_contacts"] = bounded_int(previous_contacts_signal, base.previous_contacts, 0, 50)
+    values["sla_hours"] = infer_sla_hours(normalized, base.sla_hours)
+    numeric_signals = {"days_open": days_open_signal, "previous_contacts": previous_contacts_signal, "sla_hours": values["sla_hours"] if values["sla_hours"] != base.sla_hours else None}
+    for field in ["days_open", "previous_contacts", "sla_hours"]:
+        was_extracted = numeric_signals[field] is not None
+        mark_field(field, 0.8 if was_extracted else 0.5, extracted, field_confidence, warnings, was_extracted)
+
+    values["out_of_hours"] = any_signal(normalized, ["out of hours", "overnight", "weekend", "evening"])
+    if values["out_of_hours"]:
+        mark_field("out_of_hours", 0.82, extracted, field_confidence, warnings, True)
+    else:
+        mark_field("out_of_hours", 0.5, extracted, field_confidence, warnings, False)
+
+    values["urgency_text"] = summarize_urgency(text)
+    mark_field("urgency_text", 0.9, extracted, field_confidence, warnings, True)
+
+    case_request = CaseRequest(**values)
+    all_fields = list(case_request.model_dump().keys())
+    defaulted = [field for field in all_fields if field not in extracted]
+    if defaulted:
+        warnings.append("Some fields stayed as current case values. Review them before continuing.")
+
+    confidence = round(sum(field_confidence.values()) / max(len(field_confidence), 1), 4)
+    return {
+        "case_request": case_request.model_dump(),
+        "confidence": confidence,
+        "field_confidence": field_confidence,
+        "extracted_fields": sorted(extracted),
+        "defaulted_fields": defaulted,
+        "warnings": warnings,
+    }
+
+
+def mark_field(
+    field: str,
+    confidence: float,
+    extracted: set[str],
+    field_confidence: dict[str, float],
+    warnings: list[str],
+    was_extracted: bool,
+) -> None:
+    field_confidence[field] = round(confidence, 4)
+    if was_extracted:
+        extracted.add(field)
+
+
+def infer_service_type(text: str, default: str) -> tuple[str, float]:
+    scores = {
+        service: sum(1 for keyword in keywords if keyword in text)
+        for service, keywords in SERVICE_RULES.items()
+    }
+    service, score = max(scores.items(), key=lambda item: item[1])
+    if score == 0:
+        return default, 0.45
+    return service, min(0.95, 0.64 + (score * 0.1))
+
+
+def infer_service_subtype(service_type: str, text: str) -> str:
+    if "fire" in text or "burning smell" in text or "meter cupboard" in text:
+        return "fire_risk"
+    if "mould" in text or "damp" in text:
+        return "damp_and_mould"
+    if "rent arrears" in text:
+        return "rent_arrears_support"
+    if "care package" in text or "missed visit" in text:
+        return "care_package_concern"
+    if "pothole" in text:
+        return "road_defect"
+    if "missed collection" in text:
+        return "missed_collection"
+    if "billing" in text or "bill" in text:
+        return "billing_query"
+    if "safeguarding" in text:
+        return "safeguarding_referral"
+    return f"{service_type}_review"
+
+
+def infer_source(text: str, default_source: str, default_channel: str) -> tuple[str, str]:
+    if "email" in text or "mailbox" in text:
+        return "shared_mailbox", "email"
+    if "teams" in text or "referral" in text:
+        return "teams_referral", "email"
+    if "portal" in text or "online form" in text:
+        return "case_portal", "web"
+    if "phone" in text or "called" in text or "caller" in text:
+        return "contact_centre", "phone"
+    return default_source, default_channel
+
+
+def any_signal(text: str, signals: list[str]) -> bool:
+    return any(signal in text for signal in signals)
+
+
+def first_number(text: str, patterns: list[str]) -> int | None:
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            return number_word_to_int(match.group(1))
+    return None
+
+
+def number_word_to_int(value: str) -> int:
+    words = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5}
+    if value in words:
+        return words[value]
+    return int(value) if value.isdigit() else 0
+
+
+def bounded_int(value: int | None, default: int, minimum: int, maximum: int) -> int:
+    if value is None:
+        return default
+    return max(minimum, min(value, maximum))
+
+
+def infer_sla_hours(text: str, default: int) -> int:
+    explicit = first_number(text, [r"within\s+(\d+)\s+hours?", r"due\s+within\s+(\d+)\s+hours?", r"sla\s+(\d+)\s+hours?"])
+    if explicit is not None:
+        return bounded_int(explicit, default, 1, 8760)
+    if any_signal(text, ["immediate", "urgent", "today", "same day", "safeguarding", "fire risk"]):
+        return 24
+    if "within 4 hours" in text or "four hours" in text:
+        return 4
+    if "within 2 hours" in text or "two hours" in text:
+        return 2
+    return default
+
+
+def infer_deprivation_band(text: str, district: str, default: str) -> str:
+    if any_signal(text, ["hardship", "arrears", "homeless", "food bank"]):
+        return "high"
+    if district in {"Basildon", "Harlow", "Tendring"}:
+        return "high"
+    if district in {"Brentwood", "Rochford", "Uttlesford"}:
+        return "low"
+    return default
+
+
+def summarize_urgency(text: str) -> str:
+    clean_text = re.sub(r"\s+", " ", text).strip()
+    clean_text = re.sub(r"[\w.\-+]+@[\w.\-]+", "[email removed]", clean_text)
+    clean_text = re.sub(r"\b(?:\+?44|0)\d[\d\s-]{8,}\b", "[phone removed]", clean_text)
+    if len(clean_text) < 3:
+        return "New operational information supplied for review."
+    return clean_text[:800]
+
+
+def pipeline_score_cohorts(payload: CaseRequest, evaluation: dict[str, object]) -> list[dict[str, object]]:
+    slices = evaluation.get("fairness_slices") or {}
+    if not isinstance(slices, dict):
+        return []
+
+    requested = {
+        "service_type": payload.service_type,
+        "deprivation_band": payload.deprivation_band,
+        "vulnerability_flag": str(payload.vulnerability_flag),
+    }
+    cohorts: list[dict[str, object]] = []
+    for feature, value in requested.items():
+        groups = slices.get(feature)
+        if not isinstance(groups, dict):
+            continue
+        metrics = groups.get(value)
+        if not isinstance(metrics, dict):
+            continue
+        cohorts.append(
+            {
+                "feature": feature,
+                "value": value,
+                "rows": int(metric_float(metrics.get("rows"))),
+                "accuracy": metric_float(metrics.get("accuracy")),
+                "high_priority_rate": metric_float(metrics.get("high_priority_rate")),
+            }
+        )
+    return cohorts
+
+
+def metric_float(value: object, default: float = 0.0) -> float:
+    try:
+        if value is None:
+            return default
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def read_json(path: Path) -> dict[str, object]:

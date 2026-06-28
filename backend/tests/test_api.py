@@ -67,6 +67,79 @@ def test_dashboard_summary() -> None:
     assert "shap_top_features" in body
 
 
+def test_pipeline_score_returns_model_quality_and_predictability() -> None:
+    queue_response = client.get("/cases/queue")
+    assert queue_response.status_code == 200
+    case_record = queue_response.json()[0]
+
+    response = client.post("/pipeline/score", json=case_record["case_request"])
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["prediction"]["priority"] in {"low", "medium", "high"}
+    assert body["quality"]["accuracy"] > 0
+    assert body["quality"]["validation_rows"] > 0
+    assert body["predictability"]["score"] > 0
+    assert body["predictability"]["rating"] in {"strong", "moderate", "review"}
+    assert body["predicted_class_metrics"]["precision"] >= 0
+    assert body["cohort_evidence"]
+    assert body["review"]["note"]
+
+
+def test_pipeline_extract_resident_report_returns_reviewable_case_request() -> None:
+    response = client.post(
+        "/pipeline/extract",
+        json={
+            "text": "Outlook shared mailbox. Tenant reports burning smell near meter cupboard, children in household, asked for phone contact. Chelmsford. Open 5 days, one previous contact. Due within 24 hours.",
+            "defaults": CASE_QUEUE[0].case_request.model_dump(),
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    extracted = body["case_request"]
+    assert extracted["service_type"] == "housing"
+    assert extracted["district"] == "Chelmsford"
+    assert extracted["vulnerability_flag"] is True
+    assert extracted["days_open"] == 5
+    assert extracted["previous_contacts"] == 1
+    assert len(extracted["urgency_text"]) <= 800
+    assert body["confidence"] > 0
+    assert "urgency_text" in body["extracted_fields"]
+
+
+def test_pipeline_extract_rejects_empty_text() -> None:
+    response = client.post("/pipeline/extract", json={"text": "   "})
+    assert response.status_code == 422
+
+
+def test_pipeline_extract_allows_short_reviewable_text() -> None:
+    response = client.post("/pipeline/extract", json={"text": "Leak"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["case_request"]["urgency_text"] == "Leak"
+    assert "warnings" in body
+
+
+def test_pipeline_extract_then_score_round_trip() -> None:
+    extract_response = client.post(
+        "/pipeline/extract",
+        json={
+            "text": "Teams duty referral: family support safeguarding concern, review within four hours. Epping Forest. New case, no previous contacts, out of hours handover.",
+            "defaults": CASE_QUEUE[0].case_request.model_dump(),
+        },
+    )
+    assert extract_response.status_code == 200
+
+    score_response = client.post("/pipeline/score", json=extract_response.json()["case_request"])
+
+    assert score_response.status_code == 200
+    body = score_response.json()
+    assert body["prediction"]["priority"] in {"low", "medium", "high"}
+    assert body["predictability"]["score"] >= 0
+
+
 def test_case_queue_and_decision_receipt() -> None:
     queue_response = client.get("/cases/queue")
     assert queue_response.status_code == 200
