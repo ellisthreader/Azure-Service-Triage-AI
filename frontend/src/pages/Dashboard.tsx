@@ -40,7 +40,7 @@ import {
   postPipelineScore,
   pct,
 } from "../api";
-import { Badge } from "../components/primitives";
+import { Badge, CustomSelect } from "../components/primitives";
 import { TriageForm } from "../dashboard/TriageForm";
 
 type DashboardTab = "overview" | "triage" | "pipeline" | "mlops";
@@ -749,12 +749,13 @@ function PipelineScoreTab({
           <p>{roleContext.addPrompt}</p>
           <label>
             Information type
-            <select value={informationType} onChange={(event) => setInformationType(event.target.value)}>
-              <option value="">{roleContext.sourcePlaceholder}</option>
-              {informationOptions.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
+            <CustomSelect
+              ariaLabel="Information type"
+              value={informationType}
+              placeholder={roleContext.sourcePlaceholder}
+              options={informationOptions}
+              onChange={setInformationType}
+            />
           </label>
           <p className="decision-field-help">{selectedInformationHelp(informationType, informationOptions)}</p>
           <label>
@@ -831,7 +832,7 @@ function PipelineScoreTab({
             </div>
             <Badge label={missingReviewFields.length ? `${missingReviewFields.length} to complete` : "Ready"} />
           </div>
-          <ReviewFields request={reviewCaseRequest} blankFields={blankReviewFields} onChange={updateReviewField} />
+          <ReviewFields request={reviewCaseRequest} blankFields={blankReviewFields} currentUser={currentUser} onChange={updateReviewField} />
           {missingReviewFields.length ? (
             <div className="decision-warning-list">
               <span>Complete the blank fields before generating a recommendation.</span>
@@ -971,62 +972,80 @@ function DecisionCaseStrip({ caseRecord }: { caseRecord: CaseRecord }) {
 function ReviewFields({
   request,
   blankFields,
+  currentUser,
   onChange,
 }: {
   request: CaseRequest;
   blankFields: Set<keyof CaseRequest>;
+  currentUser: StaffMember | null;
   onChange: <K extends keyof CaseRequest>(field: K, value: CaseRequest[K]) => void;
 }) {
   const valueFor = <K extends keyof CaseRequest>(field: K) => (blankFields.has(field) ? "" : String(request[field]));
+  const serviceOptions = serviceOptionsForProfile(currentUser, request.service_type);
+  const issueOptions = issueOptionsForProfile(currentUser, request.service_type, request.service_subtype);
 
   return (
     <div className="decision-review-grid">
       <label>
         Service
-        <select value={valueFor("service_type")} onChange={(event) => onChange("service_type", event.target.value as CaseRequest["service_type"])}>
-          <option value="">Select service</option>
-          <option value="housing">Housing</option>
-          <option value="adult_social_care">Adult social care</option>
-          <option value="highways">Highways</option>
-          <option value="waste">Waste</option>
-          <option value="benefits">Benefits</option>
-          <option value="council_tax">Council tax</option>
-          <option value="children_services">Children services</option>
-        </select>
+        <CustomSelect
+          ariaLabel="Service"
+          value={valueFor("service_type")}
+          placeholder="Select service"
+          options={serviceOptions}
+          onChange={(value) => onChange("service_type", value as CaseRequest["service_type"])}
+        />
       </label>
       <label>
         Issue
-        <input value={valueFor("service_subtype")} onChange={(event) => onChange("service_subtype", event.target.value)} placeholder="e.g. urgent repair, missed collection" />
+        <CustomSelect
+          ariaLabel="Issue"
+          value={valueFor("service_subtype")}
+          placeholder="Select issue"
+          options={issueOptions}
+          onChange={(value) => onChange("service_subtype", value)}
+        />
       </label>
       <label>
         District
-        <select value={valueFor("district")} onChange={(event) => onChange("district", event.target.value)}>
-          <option value="">Select Essex district</option>
-          {ESSEX_DISTRICTS.map((district) => (
-            <option key={district} value={district}>{district}</option>
-          ))}
-        </select>
+        <CustomSelect
+          ariaLabel="Essex district"
+          value={valueFor("district")}
+          placeholder="Select Essex district"
+          options={ESSEX_DISTRICTS.map((district) => ({ value: district, label: district }))}
+          onChange={(value) => onChange("district", value)}
+        />
       </label>
       <label>
         Channel
-        <select value={valueFor("channel")} onChange={(event) => onChange("channel", event.target.value as CaseRequest["channel"])}>
-          <option value="">Select channel</option>
-          <option value="web">Web</option>
-          <option value="phone">Phone</option>
-          <option value="email">Email</option>
-          <option value="in_person">In person</option>
-        </select>
+        <CustomSelect
+          ariaLabel="Channel"
+          value={valueFor("channel")}
+          placeholder="Select channel"
+          options={[
+            { value: "web", label: "Web form / online" },
+            { value: "phone", label: "Phone" },
+            { value: "email", label: "Email" },
+            { value: "in_person", label: "In person" },
+          ]}
+          onChange={(value) => onChange("channel", value as CaseRequest["channel"])}
+        />
       </label>
       <label>
         Source system
-        <select value={valueFor("source_system")} onChange={(event) => onChange("source_system", event.target.value as CaseRequest["source_system"])}>
-          <option value="">Select source</option>
-          <option value="web_form">Web form</option>
-          <option value="contact_centre">Contact centre</option>
-          <option value="shared_mailbox">Shared mailbox</option>
-          <option value="teams_referral">Teams referral</option>
-          <option value="case_portal">Case portal</option>
-        </select>
+        <CustomSelect
+          ariaLabel="Source system"
+          value={valueFor("source_system")}
+          placeholder="Select source"
+          options={[
+            { value: "web_form", label: "Web form" },
+            { value: "contact_centre", label: "Contact centre" },
+            { value: "shared_mailbox", label: "Shared mailbox" },
+            { value: "teams_referral", label: "Teams referral / handover" },
+            { value: "case_portal", label: "Case portal" },
+          ]}
+          onChange={(value) => onChange("source_system", value as CaseRequest["source_system"])}
+        />
       </label>
       <label>
         Days open
@@ -1068,14 +1087,28 @@ function sourceFields(informationType: string): Partial<CaseRequest> {
   if (!informationType) return {};
   if (informationType === "care_referral") return { source_system: "teams_referral", channel: "email", service_type: "adult_social_care" };
   if (informationType === "safeguarding_referral") return { source_system: "teams_referral", channel: "email", service_type: "adult_social_care", vulnerability_flag: true };
+  if (informationType === "provider_quality") return { source_system: "shared_mailbox", channel: "email", service_type: "adult_social_care" };
+  if (informationType === "carer_update") return { source_system: "contact_centre", channel: "phone", service_type: "adult_social_care", accessibility_need: true };
   if (informationType === "finance_assessment") return { source_system: "case_portal", channel: "web", service_type: "benefits" };
+  if (informationType === "deferred_payment") return { source_system: "case_portal", channel: "web", service_type: "benefits" };
+  if (informationType === "direct_payment") return { source_system: "shared_mailbox", channel: "email", service_type: "benefits" };
   if (informationType === "children_family_referral") return { source_system: "teams_referral", channel: "email", service_type: "children_services", vulnerability_flag: true };
+  if (informationType === "early_help_request") return { source_system: "web_form", channel: "web", service_type: "children_services" };
   if (informationType === "ehcp_update") return { source_system: "case_portal", channel: "web", service_type: "children_services" };
+  if (informationType === "school_update") return { source_system: "shared_mailbox", channel: "email", service_type: "children_services" };
   if (informationType === "highways_report") return { source_system: "web_form", channel: "web", service_type: "highways" };
   if (informationType === "highways_inspection") return { source_system: "case_portal", channel: "web", service_type: "highways" };
+  if (informationType === "traffic_management") return { source_system: "shared_mailbox", channel: "email", service_type: "highways" };
+  if (informationType === "street_lighting") return { source_system: "web_form", channel: "web", service_type: "highways" };
   if (informationType === "recycling_site_report") return { source_system: "case_portal", channel: "web", service_type: "waste" };
+  if (informationType === "waste_contract") return { source_system: "shared_mailbox", channel: "email", service_type: "waste" };
+  if (informationType === "site_incident") return { source_system: "case_portal", channel: "web", service_type: "waste", vulnerability_flag: true };
   if (informationType === "complaint_update") return { source_system: "shared_mailbox", channel: "email" };
+  if (informationType === "ombudsman_update") return { source_system: "shared_mailbox", channel: "email" };
+  if (informationType === "member_enquiry") return { source_system: "shared_mailbox", channel: "email" };
   if (informationType === "partner_referral") return { source_system: "shared_mailbox", channel: "email" };
+  if (informationType === "housing_partner") return { source_system: "shared_mailbox", channel: "email", service_type: "housing" };
+  if (informationType === "revenues_partner") return { source_system: "shared_mailbox", channel: "email", service_type: "council_tax" };
   if (informationType === "inspection_note") return { source_system: "case_portal", channel: "web" };
   if (informationType === "email_update") return { source_system: "shared_mailbox", channel: "email" };
   if (informationType === "case_portal") return { source_system: "case_portal", channel: "web" };
@@ -1094,6 +1127,8 @@ function informationTypeOptions(profile: StaffMember | null) {
     return [
       { value: "care_referral", label: "Adult care referral", help: "Referral, care-package concern, missed visit or duty update." },
       { value: "safeguarding_referral", label: "Safeguarding concern", help: "Concern about immediate risk, abuse, neglect or vulnerable adult context." },
+      { value: "provider_quality", label: "Provider quality concern", help: "Care provider quality, contract, market or regulatory concern." },
+      { value: "carer_update", label: "Carer or family update", help: "Carer stress, family contact, accessibility or support-plan update." },
       { value: "teams_referral", label: "Duty team handover", help: "Internal Teams or professional handover for adult social care." },
       ...common,
     ];
@@ -1101,6 +1136,8 @@ function informationTypeOptions(profile: StaffMember | null) {
   if (role.includes("financial assessment")) {
     return [
       { value: "finance_assessment", label: "Financial assessment update", help: "Charging, assessment, hardship or adult social care finance note." },
+      { value: "deferred_payment", label: "Deferred payment / property query", help: "Deferred payment, property disregard, capital or charging query." },
+      { value: "direct_payment", label: "Direct payment or appointee update", help: "Direct payment, appointee, deputy or finance representative update." },
       { value: "email_update", label: "Finance email update", help: "Shared mailbox or partner update about assessment progress." },
       ...common,
     ];
@@ -1108,6 +1145,8 @@ function informationTypeOptions(profile: StaffMember | null) {
   if (role.includes("send")) {
     return [
       { value: "ehcp_update", label: "EHCP or annual review update", help: "EHCP stage, school/setting response, annual review or statutory deadline." },
+      { value: "school_update", label: "School or setting update", help: "School, college, setting, placement or attendance update." },
+      { value: "member_enquiry", label: "Councillor or MP enquiry", help: "Elected member enquiry about SEND case progress or deadline risk." },
       { value: "case_portal", label: "SEND case portal record", help: "Structured SEND casework record from the case portal." },
       { value: "email_update", label: "Parent, carer or school email", help: "Email evidence from family, school or partner professional." },
     ];
@@ -1115,6 +1154,8 @@ function informationTypeOptions(profile: StaffMember | null) {
   if (role.includes("children") || role.includes("family")) {
     return [
       { value: "children_family_referral", label: "Children and Families referral", help: "Hub intake, professional referral, early help request or concern wording." },
+      { value: "early_help_request", label: "Early help request", help: "Family support, early help, advice or signposting request." },
+      { value: "school_update", label: "School or professional update", help: "School, health, police, voluntary-sector or professional update." },
       { value: "teams_referral", label: "Internal handover", help: "Teams/duty handover for family support or safeguarding triage." },
       ...common,
     ];
@@ -1123,12 +1164,16 @@ function informationTypeOptions(profile: StaffMember | null) {
     return [
       { value: "highways_report", label: "Highways resident report", help: "Road, pavement, drainage, street-lighting or public safety report." },
       { value: "highways_inspection", label: "Inspection note or photo", help: "Inspector note, site photo, route type or safety impact." },
+      { value: "street_lighting", label: "Street lighting report", help: "Street light, illuminated sign, bollard or lighting safety report." },
+      { value: "traffic_management", label: "Traffic or permit update", help: "Traffic management, works permit, signal, event or network coordination update." },
       { value: "email_update", label: "Highways email update", help: "Partner, councillor or resident email about a highways defect." },
     ];
   }
   if (role.includes("waste")) {
     return [
       { value: "recycling_site_report", label: "Recycling centre or disposal report", help: "ECC-owned site, disposal, contamination or operational issue." },
+      { value: "site_incident", label: "Site incident or access issue", help: "Recycling centre incident, access, safety or service disruption." },
+      { value: "waste_contract", label: "Waste contract or disposal update", help: "Contractor, disposal facility, contamination or tonnage issue." },
       { value: "partner_referral", label: "District collection referral", help: "Use when the issue belongs to a district/city/borough collection service." },
       { value: "inspection_note", label: "Site inspection note", help: "Operational or safety note from a waste/recycling site." },
     ];
@@ -1136,6 +1181,8 @@ function informationTypeOptions(profile: StaffMember | null) {
   if (role.includes("complaints")) {
     return [
       { value: "complaint_update", label: "Complaint or Ombudsman update", help: "Complaint stage, directorate owner, remedy, deadline or Ombudsman risk." },
+      { value: "ombudsman_update", label: "Ombudsman or escalation update", help: "LGSCO, statutory complaint escalation, remedy or compliance update." },
+      { value: "member_enquiry", label: "Councillor / MP enquiry", help: "Elected member correspondence, response deadline or directorate query." },
       { value: "email_update", label: "Resident complaint email", help: "Email from resident, representative or directorate." },
       { value: "case_portal", label: "Complaint case record", help: "Structured complaint management record." },
     ];
@@ -1143,6 +1190,9 @@ function informationTypeOptions(profile: StaffMember | null) {
   if (role.includes("partnership")) {
     return [
       { value: "partner_referral", label: "District or borough partner referral", help: "Housing, revenues or local-service update needing county coordination." },
+      { value: "housing_partner", label: "District housing partner update", help: "Housing, homelessness or allocations update owned by a district/borough partner." },
+      { value: "revenues_partner", label: "Council tax / revenues partner update", help: "Council tax or revenues query owned by a district/borough partner." },
+      { value: "member_enquiry", label: "Councillor / locality enquiry", help: "Member enquiry, locality board or partner escalation." },
       { value: "email_update", label: "Partner email update", help: "District, borough, councillor or voluntary-sector partner email." },
       ...common,
     ];
@@ -1152,6 +1202,147 @@ function informationTypeOptions(profile: StaffMember | null) {
 
 function selectedInformationHelp(value: string, options: Array<{ value: string; help: string }>) {
   return options.find((option) => option.value === value)?.help ?? "Choose the closest source type. Leave it blank if unsure.";
+}
+
+function serviceOptionsForProfile(profile: StaffMember | null, current: CaseRequest["service_type"]) {
+  const allowed = roleServiceTypes(profile);
+  const values: CaseRequest["service_type"][] = allowed.length ? [...allowed] : ["adult_social_care", "children_services", "highways", "waste", "housing", "benefits", "council_tax"];
+  if (!values.includes(current)) values.push(current);
+  const labels: Record<CaseRequest["service_type"], string> = {
+    housing: "District housing partner",
+    adult_social_care: "Adult social care",
+    highways: "Essex Highways",
+    waste: "Waste disposal / recycling centres",
+    benefits: "Financial assessment / support",
+    council_tax: "District revenues partner",
+    children_services: "Children, families or SEND",
+  };
+  return values.map((value) => ({ value, label: labels[value] }));
+}
+
+function issueOptionsForProfile(profile: StaffMember | null, serviceType: CaseRequest["service_type"], current: string) {
+  const role = `${profile?.role ?? ""} ${profile?.service_area ?? ""}`.toLowerCase();
+  let options = issueOptionsForService(serviceType);
+  if (role.includes("adult social care")) {
+    options = [
+      { value: "safeguarding_concern", label: "Safeguarding concern", help: "Abuse, neglect, exploitation or immediate adult risk." },
+      { value: "missed_care_visit", label: "Missed care visit", help: "Provider visit missed or care package failure." },
+      { value: "care_package_review", label: "Care package review", help: "Change in need, review, reassessment or support plan issue." },
+      { value: "hospital_discharge", label: "Hospital discharge", help: "Discharge planning or restart of support." },
+      { value: "carer_breakdown", label: "Carer stress / breakdown", help: "Carer unable to continue or urgent respite concern." },
+      { value: "provider_quality", label: "Provider quality", help: "Quality, contract or regulatory concern." },
+      { value: "mental_capacity", label: "Mental capacity / best interests", help: "Capacity, consent, advocacy or best-interest decision context." },
+      { value: "equipment_adaptation", label: "Equipment or adaptation", help: "Equipment, minor adaptation or accessibility support." },
+    ];
+  } else if (role.includes("financial assessment")) {
+    options = [
+      { value: "financial_assessment_due", label: "Assessment due / overdue", help: "Adult social care charging assessment timing." },
+      { value: "hardship_or_debt", label: "Hardship or debt", help: "Financial hardship, arrears or affordability concern." },
+      { value: "deferred_payment", label: "Deferred payment", help: "Property, capital, deferred payment or charging query." },
+      { value: "direct_payment", label: "Direct payment", help: "Direct payment, managed account or audit issue." },
+      { value: "appointee_deputy", label: "Appointee / deputy issue", help: "Representative, appointee, deputy or authority query." },
+      { value: "benefit_maximisation", label: "Benefit maximisation", help: "Income, entitlement or support evidence." },
+    ];
+  } else if (role.includes("send")) {
+    options = [
+      { value: "ehcp_needs_assessment", label: "EHC needs assessment", help: "Assessment request, evidence gathering or decision timing." },
+      { value: "ehcp_plan_issue", label: "EHCP plan issue", help: "Draft/final plan, provision or amendment query." },
+      { value: "annual_review_overdue", label: "Annual review due / overdue", help: "Annual review timing or follow-up." },
+      { value: "placement_or_transport", label: "Placement or transport", help: "School placement, transition or travel assistance risk." },
+      { value: "parent_school_contact", label: "Parent/school contact", help: "Family, school or setting update requiring response." },
+      { value: "statutory_deadline", label: "Statutory deadline risk", help: "Deadline or compliance risk needing escalation." },
+    ];
+  } else if (role.includes("children") || role.includes("family")) {
+    options = [
+      { value: "mash_safeguarding", label: "Safeguarding / MASH concern", help: "Concern requiring safeguarding triage." },
+      { value: "early_help", label: "Early help request", help: "Family support, advice or early-help pathway." },
+      { value: "family_support", label: "Family support need", help: "Parenting, home context, school or partner support need." },
+      { value: "professional_referral", label: "Professional referral", help: "Police, school, health or partner referral." },
+      { value: "missing_or_exploitation", label: "Missing / exploitation concern", help: "Missing episode, exploitation or high-risk concern." },
+      { value: "handover_or_stepdown", label: "Handover / step-down", help: "Internal handover, step-up or step-down decision." },
+    ];
+  } else if (role.includes("highways")) {
+    options = [
+      { value: "pothole_or_carriageway", label: "Pothole / carriageway defect", help: "Road defect, surface issue or carriageway safety." },
+      { value: "footway_trip_hazard", label: "Footway trip hazard", help: "Pavement defect, trip hazard or accessibility issue." },
+      { value: "drainage_flooding", label: "Drainage or flooding", help: "Blocked drain, flooding, standing water or gully issue." },
+      { value: "street_lighting_fault", label: "Street lighting fault", help: "Lighting, illuminated sign or bollard fault." },
+      { value: "traffic_signal_signage", label: "Traffic signal / signage", help: "Signals, signs, markings or network management." },
+      { value: "vegetation_obstruction", label: "Vegetation obstruction", help: "Overgrowth, visibility or obstruction concern." },
+      { value: "winter_or_emergency", label: "Winter / emergency defect", help: "Weather, urgent hazard or emergency response context." },
+    ];
+  } else if (role.includes("waste")) {
+    options = [
+      { value: "recycling_centre_access", label: "Recycling centre access", help: "Site access, booking, queue, opening or disruption." },
+      { value: "site_safety_incident", label: "Site safety incident", help: "Incident, hazard, injury or site safety concern." },
+      { value: "waste_disposal_contract", label: "Disposal contract issue", help: "Contractor, facility, transfer or tonnage issue." },
+      { value: "contamination_or_reject", label: "Contamination / rejected load", help: "Rejected load, contamination or disposal compliance." },
+      { value: "district_collection_partner", label: "District collection partner", help: "Kerbside bins or collection issue owned by district partner." },
+      { value: "environmental_report", label: "Environmental report", help: "Fly-tipping, waste site or environmental service concern." },
+    ];
+  } else if (role.includes("complaints")) {
+    options = [
+      { value: "stage_one_complaint", label: "Stage 1 complaint", help: "Initial corporate or service complaint." },
+      { value: "stage_two_escalation", label: "Stage 2 escalation", help: "Escalated complaint requiring further review." },
+      { value: "statutory_complaint", label: "Statutory complaint", help: "Adults, children or statutory complaint pathway." },
+      { value: "ombudsman_risk", label: "Ombudsman risk", help: "LGSCO, remedy, compliance or maladministration risk." },
+      { value: "member_enquiry", label: "Councillor / MP enquiry", help: "Member correspondence requiring coordinated response." },
+      { value: "remedy_or_learning", label: "Remedy / service learning", help: "Apology, payment, service change or learning action." },
+    ];
+  } else if (role.includes("partnership")) {
+    options = [
+      { value: "district_housing_referral", label: "District housing referral", help: "Housing or homelessness update owned by district partner." },
+      { value: "council_tax_partner", label: "Council tax partner query", help: "Revenues query owned by district/city/borough partner." },
+      { value: "locality_escalation", label: "Locality escalation", help: "Locality board, councillor or place-based partner issue." },
+      { value: "voluntary_sector_link", label: "Voluntary-sector link", help: "Community, voluntary-sector or wellbeing partner coordination." },
+      { value: "county_input_requested", label: "County input requested", help: "Partner needs ECC action, information or decision." },
+    ];
+  }
+  if (current && !options.some((option) => option.value === current)) {
+    options = [{ value: current, label: clean(current), help: "Current case value" }, ...options];
+  }
+  return options;
+}
+
+function issueOptionsForService(serviceType: CaseRequest["service_type"]) {
+  const options: Record<CaseRequest["service_type"], Array<{ value: string; label: string; help?: string }>> = {
+    housing: [
+      { value: "district_housing_referral", label: "District housing referral" },
+      { value: "homelessness_partner", label: "Homelessness partner update" },
+      { value: "housing_disrepair_partner", label: "Housing repair partner update" },
+    ],
+    adult_social_care: [
+      { value: "care_review", label: "Care review" },
+      { value: "safeguarding_concern", label: "Safeguarding concern" },
+      { value: "missed_care_visit", label: "Missed care visit" },
+    ],
+    highways: [
+      { value: "pothole_or_carriageway", label: "Pothole / carriageway defect" },
+      { value: "footway_trip_hazard", label: "Footway trip hazard" },
+      { value: "drainage_flooding", label: "Drainage or flooding" },
+    ],
+    waste: [
+      { value: "recycling_centre_access", label: "Recycling centre access" },
+      { value: "waste_disposal_contract", label: "Disposal contract issue" },
+      { value: "district_collection_partner", label: "District collection partner" },
+    ],
+    benefits: [
+      { value: "financial_assessment_due", label: "Financial assessment" },
+      { value: "hardship_or_debt", label: "Hardship or debt" },
+      { value: "benefit_maximisation", label: "Benefit maximisation" },
+    ],
+    council_tax: [
+      { value: "council_tax_partner", label: "Council tax partner query" },
+      { value: "hardship_or_debt", label: "Hardship or arrears" },
+      { value: "district_revenues_referral", label: "District revenues referral" },
+    ],
+    children_services: [
+      { value: "mash_safeguarding", label: "Safeguarding / MASH concern" },
+      { value: "early_help", label: "Early help request" },
+      { value: "ehcp_needs_assessment", label: "EHC needs assessment" },
+    ],
+  };
+  return options[serviceType];
 }
 
 function roleDefaultFields(profile: StaffMember | null): Partial<CaseRequest> {

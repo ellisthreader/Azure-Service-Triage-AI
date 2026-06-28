@@ -1,5 +1,83 @@
 import React from "react";
 
+export type SelectOption = {
+  value: string;
+  label: string;
+  help?: string;
+};
+
+export function CustomSelect({
+  ariaLabel,
+  onChange,
+  options,
+  placeholder = "Select",
+  value,
+}: {
+  ariaLabel: string;
+  onChange: (value: string) => void;
+  options: SelectOption[];
+  placeholder?: string;
+  value: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef<HTMLDivElement | null>(null);
+  const listId = React.useId();
+  const selected = options.find((option) => option.value === value);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const close = (event: MouseEvent) => {
+      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", close);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  return (
+    <div className="custom-select" ref={ref}>
+      <button
+        type="button"
+        className={!selected ? "placeholder" : ""}
+        aria-label={ariaLabel}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listId}
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span>{selected?.label ?? placeholder}</span>
+        <i aria-hidden="true" />
+      </button>
+      {open && (
+        <div className="custom-select-list" id={listId} role="listbox" aria-label={ariaLabel}>
+          {options.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="option"
+              aria-selected={option.value === value}
+              className={option.value === value ? "selected" : ""}
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
+            >
+              <span>{option.label}</span>
+              {option.help && <small>{option.help}</small>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Kpi({ icon, label, value, hint }: { icon: React.ReactNode; label: string; value: string | number; hint?: string }) {
   return (
     <section className="kpi-card">

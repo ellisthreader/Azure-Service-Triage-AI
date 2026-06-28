@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import type { CaseRecord, EvidenceItem as ApiEvidenceItem, M365SourceDetail, SourceItem, StaffMember } from "../api";
 import { API_BASE, fetchCaseEvidenceDetail, fetchCaseSourceDetail } from "../api";
 import { clean } from "../api";
+import { CustomSelect } from "../components/primitives";
 
 type Props = {
   caseRecord: CaseRecord | null;
@@ -130,6 +131,8 @@ export function TriageForm({
               />
               {caseRecord.assigned_to && (
                 <CaseUpdateForm
+                  caseRecord={caseRecord}
+                  currentUser={currentUser}
                   nextAction={nextAction}
                   updateText={updateText}
                   onNextActionChange={setNextAction}
@@ -222,6 +225,83 @@ function emptyCaseContext(currentUser?: StaffMember | null) {
     body: "The case will open with its details, evidence, notes, and recent activity.",
     hint: "Choose a staff profile to tailor this page to the job role.",
   };
+}
+
+function nextActionOptions(currentUser: StaffMember | null | undefined, caseRecord: CaseRecord) {
+  const role = `${currentUser?.role ?? ""} ${currentUser?.service_area ?? ""}`.toLowerCase();
+  const base = [
+    { value: "Contact resident", label: "Contact resident", help: "Call or email resident, carer or representative." },
+    { value: "Request evidence", label: "Request evidence", help: "Ask for documents, photos or missing information." },
+    { value: "Check linked records", label: "Check linked records", help: "Review Outlook, Teams, SharePoint or portal context." },
+    { value: "Refer to duty manager", label: "Refer to duty manager", help: "Escalate internally for judgement or approval." },
+    { value: "Mark waiting for update", label: "Mark waiting for update", help: "Record that the case is waiting on another person or team." },
+  ];
+  if (role.includes("adult social care")) {
+    return [
+      { value: "Escalate safeguarding concern", label: "Escalate safeguarding concern", help: "Use if immediate adult safeguarding risk is present." },
+      { value: "Refer to duty social worker", label: "Refer to duty social worker", help: "Send to duty/assessment team for professional review." },
+      { value: "Contact care provider", label: "Contact care provider", help: "Check missed visit, package failure or quality concern." },
+      { value: "Contact carer or representative", label: "Contact carer / representative", help: "Confirm consent, support needs or urgent context." },
+      { value: "Arrange assessment review", label: "Arrange assessment review", help: "Book or request reassessment/support-plan review." },
+      ...base,
+    ];
+  }
+  if (role.includes("send")) {
+    return [
+      { value: "Check statutory deadline", label: "Check statutory deadline", help: "Confirm EHCP, annual review or response date." },
+      { value: "Contact school or setting", label: "Contact school / setting", help: "Request education evidence or placement update." },
+      { value: "Contact parent or carer", label: "Contact parent / carer", help: "Clarify family update or missing evidence." },
+      { value: "Escalate placement risk", label: "Escalate placement risk", help: "Use where placement/provision risk needs lead review." },
+      ...base,
+    ];
+  }
+  if (role.includes("children") || role.includes("family")) {
+    return [
+      { value: "Route to Children and Families Hub", label: "Route to C&F Hub pathway", help: "Send to the correct hub outcome or support route." },
+      { value: "Escalate safeguarding concern", label: "Escalate safeguarding concern", help: "Use local safeguarding process if concern is clear." },
+      { value: "Request professional information", label: "Request professional information", help: "Ask school, health, police or partner for context." },
+      { value: "Offer early help signposting", label: "Offer early help signposting", help: "Record advice, information or early-help route." },
+      ...base,
+    ];
+  }
+  if (role.includes("highways")) {
+    return [
+      { value: "Send to highways inspection", label: "Send to highways inspection", help: "Request inspection for road/pavement/drainage issue." },
+      { value: "Request location evidence", label: "Request location evidence", help: "Ask for exact location, photos or what3words/grid context." },
+      { value: "Escalate public safety hazard", label: "Escalate safety hazard", help: "Use for urgent traffic, pedestrian or route safety risk." },
+      { value: "Check duplicate reports", label: "Check duplicate reports", help: "Review repeat enquiries for the same location." },
+      ...base,
+    ];
+  }
+  if (role.includes("waste")) {
+    return [
+      { value: "Route to recycling centre operations", label: "Route to recycling-centre ops", help: "Use for ECC-owned site or disposal work." },
+      { value: "Refer to district collection partner", label: "Refer to district collection partner", help: "Use for kerbside bin collection ownership." },
+      { value: "Escalate site safety incident", label: "Escalate site safety incident", help: "Use for site hazard, injury or access risk." },
+      { value: "Contact contractor", label: "Contact contractor", help: "Check contract, disposal, transfer or facility issue." },
+      ...base,
+    ];
+  }
+  if (role.includes("complaints")) {
+    return [
+      { value: "Assign directorate owner", label: "Assign directorate owner", help: "Identify service owner for response." },
+      { value: "Check response deadline", label: "Check response deadline", help: "Confirm complaint or statutory response date." },
+      { value: "Escalate Ombudsman risk", label: "Escalate Ombudsman risk", help: "Use where LGSCO, remedy or compliance risk is present." },
+      { value: "Draft complaint response", label: "Draft complaint response", help: "Prepare response summary or request directorate input." },
+      ...base,
+    ];
+  }
+  if (role.includes("partnership")) {
+    return [
+      { value: "Confirm partner owner", label: "Confirm partner owner", help: "Check district, borough, city or voluntary-sector owner." },
+      { value: "Route to district partner", label: "Route to district partner", help: "Use for housing, council tax or collection-owned issues." },
+      { value: "Record county follow-up", label: "Record county follow-up", help: "Log ECC action requested by partner." },
+      { value: "Escalate locality issue", label: "Escalate locality issue", help: "Use for locality board or councillor escalation." },
+      ...base,
+    ];
+  }
+  return [{ value: caseRecord.action, label: caseRecord.action, help: "Current suggested action" }, ...base]
+    .filter((option, index, rows) => rows.findIndex((row) => row.value === option.value) === index);
 }
 
 function CaseDetailTabs({
@@ -419,31 +499,35 @@ function LinkedItemsList({ items, onOpen }: { items: SourceItem[]; onOpen: (item
 }
 
 function CaseUpdateForm({
+  caseRecord,
+  currentUser,
   nextAction,
   updateText,
   onNextActionChange,
   onUpdateTextChange,
   onAddUpdate,
 }: {
+  caseRecord: CaseRecord;
+  currentUser?: StaffMember | null;
   nextAction: string;
   updateText: string;
   onNextActionChange: (value: string) => void;
   onUpdateTextChange: (value: string) => void;
   onAddUpdate: () => void;
 }) {
+  const actionOptions = nextActionOptions(currentUser, caseRecord);
   return (
     <section className="simple-case-section simple-work-section">
       <h3>Work on this case</h3>
       <label>
         Next action
-        <select value={nextAction} onChange={(event) => onNextActionChange(event.target.value)}>
-          <option>Contact resident</option>
-          <option>Request evidence</option>
-          <option>Check linked records</option>
-          <option>Refer to duty manager</option>
-          <option>Book service visit</option>
-          <option>Mark waiting for update</option>
-        </select>
+        <CustomSelect
+          ariaLabel="Next action"
+          value={nextAction}
+          placeholder="Select next action"
+          options={actionOptions}
+          onChange={onNextActionChange}
+        />
       </label>
       <label>
         Add update
