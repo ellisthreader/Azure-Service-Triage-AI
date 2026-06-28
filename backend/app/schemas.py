@@ -132,6 +132,10 @@ class StaffMember(BaseModel):
     role: str
     team: str
     avatar_url: str
+    service_area: str = ""
+    decision_focus: str = ""
+    default_service_type: str = ""
+    default_information_type: str = ""
 
 
 class ActivityItem(BaseModel):

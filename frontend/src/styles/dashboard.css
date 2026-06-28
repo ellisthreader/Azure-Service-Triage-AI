@@ -3052,6 +3052,10 @@ tbody tr:hover {
   box-shadow: 0 16px 40px rgba(31, 35, 40, 0.16);
 }
 
+.employee-profile-dropdown--wide {
+  width: min(380px, calc(100vw - 28px));
+}
+
 .employee-profile-dropdown-head {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -3067,7 +3071,8 @@ tbody tr:hover {
 }
 
 .employee-profile-dropdown-head strong,
-.employee-profile-dropdown-head span {
+.employee-profile-dropdown-head span,
+.employee-profile-dropdown-head small {
   display: block;
   min-width: 0;
   overflow: hidden;
@@ -3084,6 +3089,75 @@ tbody tr:hover {
   color: var(--employee-muted);
   font-size: 0.78rem;
   font-weight: 650;
+}
+
+.employee-profile-dropdown-head small {
+  margin-top: 2px;
+  color: var(--employee-muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.employee-profile-dropdown-head--empty {
+  grid-template-columns: 34px minmax(0, 1fr);
+}
+
+.employee-profile-dropdown-head--empty svg {
+  align-self: center;
+  justify-self: center;
+  color: var(--employee-blue);
+}
+
+.employee-profile-switcher {
+  display: grid;
+  gap: 4px;
+  max-height: min(420px, 54vh);
+  overflow-y: auto;
+  padding: 8px;
+  border-bottom: 1px solid var(--employee-line);
+}
+
+.employee-profile-switcher button {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  min-height: 52px;
+  padding: 8px;
+  border-radius: 8px;
+}
+
+.employee-profile-switcher button.selected {
+  background: #eef3f8;
+  color: var(--employee-blue);
+}
+
+.employee-profile-switcher img {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.employee-profile-switcher span,
+.employee-profile-switcher strong,
+.employee-profile-switcher small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.employee-profile-switcher strong {
+  font-size: 0.86rem;
+}
+
+.employee-profile-switcher small {
+  margin-top: 2px;
+  color: var(--employee-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
 }
 
 .employee-profile-dropdown button {

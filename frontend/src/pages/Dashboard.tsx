@@ -93,6 +93,7 @@ export function Dashboard({ setCaseInput, setPrediction, online, chatOpen, onTog
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const previousQueueRef = useRef<Map<string, string> | null>(null);
   const selectedCase = caseQueue.find((row) => row.case_id === selectedCaseId) ?? null;
+  const staffProfiles = Object.values(SYNTHETIC_STAFF);
 
   const activeLabel =
     activeTab === "mlops"
@@ -198,11 +199,15 @@ export function Dashboard({ setCaseInput, setPrediction, online, chatOpen, onTog
     changeTab("triage");
   }
 
-  function signIn() {
-    setCurrentUser(SYNTHETIC_STAFF.me);
-    window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(SYNTHETIC_STAFF.me));
+  function switchProfile(profile: StaffMember) {
+    setCurrentUser(profile);
+    window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
     setProfileMenuOpen(false);
     setDecisionError(null);
+  }
+
+  function signIn() {
+    switchProfile(SYNTHETIC_STAFF.me);
   }
 
   function signOut() {
@@ -309,44 +314,74 @@ export function Dashboard({ setCaseInput, setPrediction, online, chatOpen, onTog
               <span>AI</span>
               <small>{online ? "Online" : "Offline"}</small>
             </button>
-            {currentUser ? (
-              <div className="employee-profile-menu" ref={profileMenuRef}>
-                <button
-                  type="button"
-                  className="employee-profile-trigger"
-                  aria-label={`${currentUser.name} account menu`}
-                  aria-haspopup="menu"
-                  aria-expanded={profileMenuOpen}
-                  onClick={() => setProfileMenuOpen((open) => !open)}
-                >
+            <div className="employee-profile-menu" ref={profileMenuRef}>
+              <button
+                type="button"
+                className={currentUser ? "employee-profile-trigger" : "employee-login-button"}
+                aria-label={currentUser ? `${currentUser.name} account menu` : "Open profile menu"}
+                aria-haspopup="menu"
+                aria-expanded={profileMenuOpen}
+                onClick={() => setProfileMenuOpen((open) => !open)}
+              >
+                {currentUser ? (
                   <img src={currentUser.avatar_url} alt="" />
-                </button>
-                {profileMenuOpen && (
-                  <div className="employee-profile-dropdown" role="menu">
+                ) : (
+                  <>
+                    <LogIn size={16} />
+                    Sign in
+                  </>
+                )}
+              </button>
+              {profileMenuOpen && (
+                <div className="employee-profile-dropdown employee-profile-dropdown--wide" role="menu">
+                  {currentUser ? (
                     <div className="employee-profile-dropdown-head">
                       <img src={currentUser.avatar_url} alt="" />
                       <div>
                         <strong>{currentUser.name}</strong>
                         <span>{currentUser.role}</span>
+                        <small>{currentUser.team}</small>
                       </div>
                     </div>
-                    <button type="button" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
-                      <Settings size={16} />
-                      Account settings
-                    </button>
+                  ) : (
+                    <div className="employee-profile-dropdown-head employee-profile-dropdown-head--empty">
+                      <LogIn size={18} />
+                      <div>
+                        <strong>Choose a staff profile</strong>
+                        <span>Switch dashboard view by job role</span>
+                      </div>
+                    </div>
+                  )}
+                  <div className="employee-profile-switcher" aria-label="Staff profiles">
+                    {staffProfiles.map((profile) => (
+                      <button
+                        key={profile.id}
+                        type="button"
+                        role="menuitem"
+                        className={currentUser?.id === profile.id ? "selected" : ""}
+                        onClick={() => switchProfile(profile)}
+                      >
+                        <img src={profile.avatar_url} alt="" />
+                        <span>
+                          <strong>{profile.name}</strong>
+                          <small>{profile.role}</small>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <button type="button" role="menuitem" onClick={() => setProfileMenuOpen(false)}>
+                    <Settings size={16} />
+                    Account settings
+                  </button>
+                  {currentUser && (
                     <button type="button" role="menuitem" onClick={signOut}>
                       <LogOut size={16} />
                       Sign out
                     </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <button type="button" className="employee-login-button" onClick={signIn}>
-                <LogIn size={16} />
-                Sign in
-              </button>
-            )}
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -554,6 +589,7 @@ function PipelineScoreTab({
     const value = reviewCaseRequest?.[field];
     return blankReviewFields.has(field) || (typeof value === "string" && !value.trim());
   });
+  const roleContext = decisionRoleContext(currentUser);
 
   function goToStep(nextStep: DecisionStep) {
     if (stepOrder.indexOf(nextStep) <= furthestStepIndex) {
@@ -571,6 +607,7 @@ function PipelineScoreTab({
     const uploadedContext = uploadedInfoName ? ` Uploaded supporting file: ${uploadedInfoName}.` : "";
     const defaults: CaseRequest = {
       ...caseRecord.case_request,
+      ...roleDefaultFields(currentUser),
       ...sourceFields(informationType),
     };
 
@@ -655,8 +692,8 @@ function PipelineScoreTab({
       <section className="decision-header">
         <div>
           <span className="employee-kicker">Staff decision support</span>
-          <h2>Decision support</h2>
-          <p>Paste new case information, check the fields, then generate a staff-reviewed recommendation.</p>
+          <h2>{roleContext.title}</h2>
+          <p>{roleContext.description}</p>
         </div>
         <div className={`pipeline-rating ${rating}`}>
           <span>{analysisScore ? "Model confidence" : "Status"}</span>
@@ -674,10 +711,11 @@ function PipelineScoreTab({
         {step === "add" && (
         <section className="decision-card decision-input-card">
           <h3>1. Add information</h3>
+          <p>{roleContext.addPrompt}</p>
           <label>
             Information type
             <select value={informationType} onChange={(event) => setInformationType(event.target.value)}>
-              <option value="">Choose if known</option>
+              <option value="">{roleContext.sourcePlaceholder}</option>
               <option value="resident_report">Resident report</option>
               <option value="inspection_note">Inspection note</option>
               <option value="email_update">Email update</option>
@@ -690,7 +728,7 @@ function PipelineScoreTab({
             <textarea
               value={operationalText}
               onChange={(event) => setOperationalText(event.target.value)}
-              placeholder="Paste a resident report, inspection note, email, or case update..."
+              placeholder={roleContext.inputPlaceholder}
             />
           </label>
           <div className="decision-upload-row">
@@ -721,13 +759,13 @@ function PipelineScoreTab({
             <div className="decision-recommendation">
               <span>Suggested priority</span>
               <strong className={selectedPrediction.priority}>{clean(selectedPrediction.priority)}</strong>
-              <p>{recommendedAction(selectedPrediction.priority)}</p>
+              <p>{recommendedAction(selectedPrediction.priority, currentUser)}</p>
               <small>Confidence {pct(selectedPrediction.confidence)} · {selectedPrediction.human_review_required ? "Staff review required" : "Standard review"}</small>
             </div>
           ) : (
             <div className="decision-empty-state">
               <BrainCircuit size={22} />
-              <span>Review extracted fields, then generate a recommendation.</span>
+              <span>{roleContext.emptyRecommendation}</span>
             </div>
           )}
           <div className="decision-panel-actions">
@@ -755,7 +793,7 @@ function PipelineScoreTab({
           <div className="decision-section-head">
             <div>
               <h3>2. Review extracted fields</h3>
-              <p>Complete the blank fields. The model only runs after staff review.</p>
+              <p>{roleContext.reviewPrompt}</p>
             </div>
             <Badge label={missingReviewFields.length ? `${missingReviewFields.length} to complete` : "Ready"} />
           </div>
@@ -782,7 +820,7 @@ function PipelineScoreTab({
           <div className="decision-section-head">
             <div>
               <h3>4. Staff final decision</h3>
-              <p>Advisory only. Staff must apply policy and professional judgement.</p>
+              <p>{roleContext.finalPrompt}</p>
             </div>
             {decisionReceipt && <Badge label={decisionReceipt.status} />}
           </div>
@@ -800,7 +838,7 @@ function PipelineScoreTab({
           </div>
           <label>
             Action taken
-            <input value={actionTaken} onChange={(event) => setActionTaken(event.target.value)} placeholder="e.g. Escalated to duty manager" />
+            <input value={actionTaken} onChange={(event) => setActionTaken(event.target.value)} placeholder={roleContext.actionPlaceholder} />
           </label>
           {finalDiffersFromModel && (
             <label>
@@ -984,7 +1022,83 @@ function sourceFields(informationType: string): Partial<CaseRequest> {
   return { source_system: "contact_centre", channel: "phone" };
 }
 
-function recommendedAction(priority?: Prediction["priority"]) {
+function roleDefaultFields(profile: StaffMember | null): Partial<CaseRequest> {
+  return profile?.default_service_type ? { service_type: profile.default_service_type } : {};
+}
+
+function decisionRoleContext(profile: StaffMember | null) {
+  const role = `${profile?.role ?? ""} ${profile?.service_area ?? ""}`.toLowerCase();
+  const base = {
+    title: profile ? `${profile.role} support` : "Decision support",
+    description: profile?.decision_focus ?? "Paste new case information, check the fields, then generate a staff-reviewed recommendation.",
+    addPrompt: "Paste the latest note, email, call summary or inspection update. Leave anything unknown blank.",
+    sourcePlaceholder: profile?.default_information_type ? `Choose source, e.g. ${clean(profile.default_information_type)}` : "Choose if known",
+    inputPlaceholder: "Paste a resident report, inspection note, email, or case update...",
+    reviewPrompt: "Complete the blank fields. The model only runs after staff review.",
+    emptyRecommendation: "Review the fields, then generate a recommendation.",
+    finalPrompt: "Advisory only. Staff must apply policy and professional judgement.",
+    actionPlaceholder: "e.g. Escalated to duty manager",
+  };
+
+  if (role.includes("adult social care") || role.includes("financial assessment")) {
+    return {
+      ...base,
+      addPrompt: "Paste the referral, call note, care update or finance assessment note.",
+      inputPlaceholder: "Example: resident missed care visit, safeguarding concern, carer stress, urgent finance issue...",
+      reviewPrompt: "Check vulnerability, accessibility, previous contact and urgency before asking the model.",
+      emptyRecommendation: "Review adult care signals, then generate a recommendation.",
+      actionPlaceholder: "e.g. Referred to adult social care duty team",
+    };
+  }
+  if (role.includes("send") || role.includes("children") || role.includes("family")) {
+    return {
+      ...base,
+      addPrompt: "Paste the school, family support, SEND or early-help update.",
+      inputPlaceholder: "Example: parent email, school note, SEND case update, safeguarding or early-help referral...",
+      reviewPrompt: "Check child/family context and statutory urgency before asking the model.",
+      emptyRecommendation: "Review children and family details, then generate a recommendation.",
+      actionPlaceholder: "e.g. Sent to SEND casework queue for same-week review",
+    };
+  }
+  if (role.includes("highways")) {
+    return {
+      ...base,
+      addPrompt: "Paste the road, pavement, drainage, street-lighting or public-safety report.",
+      inputPlaceholder: "Example: pothole near school route, blocked drain, damaged signal, unsafe footway...",
+      reviewPrompt: "Check location, public safety, repeat reports and time open before asking the model.",
+      emptyRecommendation: "Review highways safety details, then generate a recommendation.",
+      actionPlaceholder: "e.g. Sent to highways inspector for urgent review",
+    };
+  }
+  if (role.includes("waste") || role.includes("environment")) {
+    return {
+      ...base,
+      addPrompt: "Paste the waste, recycling centre, fly-tipping or environmental service update.",
+      inputPlaceholder: "Example: repeated missed collection, fly-tipping evidence, recycling centre access issue...",
+      reviewPrompt: "Check repeat reports, location and operational impact before asking the model.",
+      emptyRecommendation: "Review environmental service details, then generate a recommendation.",
+      actionPlaceholder: "e.g. Routed to waste operations for next available visit",
+    };
+  }
+  if (role.includes("partnership")) {
+    return {
+      ...base,
+      addPrompt: "Paste the partner update from a district, borough, housing or revenues team.",
+      inputPlaceholder: "Example: district housing update, council tax hardship note, local partner escalation...",
+      reviewPrompt: "Check which partner owns the case and what county input is needed.",
+      emptyRecommendation: "Review partnership details, then generate a recommendation.",
+      actionPlaceholder: "e.g. Shared with district partner and logged county follow-up",
+    };
+  }
+  return base;
+}
+
+function recommendedAction(priority?: Prediction["priority"], profile?: StaffMember | null) {
+  const role = `${profile?.role ?? ""} ${profile?.service_area ?? ""}`.toLowerCase();
+  if (priority === "high" && (role.includes("adult social care") || role.includes("children") || role.includes("send"))) {
+    return "Escalate for same-day safeguarding or duty-team review and check supporting evidence.";
+  }
+  if (priority === "high" && role.includes("highways")) return "Escalate for safety inspection and check location, access and repeat-report evidence.";
   if (priority === "high") return "Escalate for same-day officer review and check safeguarding or service-risk evidence.";
   if (priority === "medium") return "Prioritise for duty-team review after urgent cases and request any missing information.";
   if (priority === "low") return "Keep in the standard queue unless staff identify new risk evidence.";
