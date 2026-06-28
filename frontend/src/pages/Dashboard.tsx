@@ -9,6 +9,7 @@ import {
   ClipboardList,
   Clock3,
   Database,
+  Hammer,
   FileCheck2,
   FileText,
   FolderOpen,
@@ -43,13 +44,14 @@ import {
 import { Badge } from "../components/primitives";
 import { TriageForm } from "../dashboard/TriageForm";
 
-type DashboardTab = "overview" | "triage" | "pipeline" | "mlops";
+type DashboardTab = "overview" | "triage" | "pipeline" | "tools" | "mlops";
 type MlopsSection = "summary" | "data" | "azure" | "model" | "monitoring" | "governance";
 
 const TABS: Array<{ id: DashboardTab; label: string; icon: ReactNode; helper: string }> = [
   { id: "overview", label: "Today", icon: <Home size={16} />, helper: "Priority list" },
   { id: "triage", label: "Case details", icon: <ShieldCheck size={16} />, helper: "Review record" },
   { id: "pipeline", label: "Decision support", icon: <ClipboardList size={16} />, helper: "Analyse information" },
+  { id: "tools", label: "Work tools", icon: <Hammer size={16} />, helper: "Role guidance" },
   { id: "mlops", label: "MLOps", icon: <LockKeyhole size={16} />, helper: "Manager view" },
 ];
 
@@ -391,6 +393,8 @@ export function Dashboard({ setCaseInput, setPrediction, online, chatOpen, onTog
               ? "employee-content--overview"
               : activeTab === "pipeline"
               ? "employee-content--pipeline"
+              : activeTab === "tools"
+              ? "employee-content--tools"
               : activeTab === "mlops"
               ? "employee-content--mlops"
               : "employee-content--case-record"
@@ -489,7 +493,7 @@ export function Dashboard({ setCaseInput, setPrediction, online, chatOpen, onTog
               {decisionError && (
                 <div className="error-banner" role="alert">
                   <AlertCircle size={17} />
-                  <span>Assignment failed: {decisionError}. Check the API endpoint, then try again.</span>
+                  <span>Assignment failed: {decisionError}. Keep working from the queue and try again when the service reconnects.</span>
                 </div>
               )}
               <TriageForm
@@ -505,6 +509,17 @@ export function Dashboard({ setCaseInput, setPrediction, online, chatOpen, onTog
           {activeTab === "pipeline" && (
             <section className="tab-panel employee-pipeline-score" role="tabpanel">
               <PipelineScoreTab caseRecord={selectedCase} currentUser={currentUser} />
+            </section>
+          )}
+
+          {activeTab === "tools" && (
+            <section className="tab-panel employee-tools" role="tabpanel">
+              <RoleToolsPage
+                currentUser={currentUser}
+                onOpenDecisionSupport={() => changeTab("pipeline")}
+                onOpenQueue={() => changeTab("overview")}
+                onSignIn={signIn}
+              />
             </section>
           )}
 
@@ -784,7 +799,7 @@ function PipelineScoreTab({
       {analysisError && (
         <div className="error-banner" role="alert">
           <AlertCircle size={17} />
-          <span>Analysis failed: {analysisError}. Check the API endpoint, then try again.</span>
+          <span>{roleContext.errorRecovery} {analysisError}</span>
         </div>
       )}
 
@@ -863,6 +878,88 @@ function PipelineScoreTab({
           )}
         </section>
       )}
+    </div>
+  );
+}
+
+function RoleToolsPage({
+  currentUser,
+  onOpenDecisionSupport,
+  onOpenQueue,
+  onSignIn,
+}: {
+  currentUser: StaffMember | null;
+  onOpenDecisionSupport: () => void;
+  onOpenQueue: () => void;
+  onSignIn: () => void;
+}) {
+  const context = roleToolContext(currentUser);
+
+  return (
+    <div className="role-tools-page">
+      <section className="role-tools-hero">
+        <div>
+          <span className="employee-kicker">{currentUser ? currentUser.team : "Staff profile required"}</span>
+          <h2>{context.title}</h2>
+          <p>{context.summary}</p>
+        </div>
+        <div className="role-tools-profile">
+          {currentUser ? <img src={currentUser.avatar_url} alt="" /> : <LogIn size={28} />}
+          <div>
+            <strong>{currentUser?.name ?? "Choose a profile"}</strong>
+            <span>{currentUser?.role ?? "Open the profile menu to switch role"}</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="role-tool-error" role="alert">
+        <AlertCircle size={22} />
+        <div>
+          <strong>{context.errorTitle}</strong>
+          <p>{context.errorBody}</p>
+          <code>Error: stdin is not a terminal</code>
+          <small>[Vibyra exited: 1]</small>
+        </div>
+      </section>
+
+      <section className="role-tools-grid">
+        <article className="decision-card role-tool-card">
+          <h3>What this role normally handles</h3>
+          <ul>
+            {context.tasks.map((task) => <li key={task}>{task}</li>)}
+          </ul>
+        </article>
+        <article className="decision-card role-tool-card">
+          <h3>Details to capture</h3>
+          <ul>
+            {context.evidence.map((item) => <li key={item}>{item}</li>)}
+          </ul>
+        </article>
+        <article className="decision-card role-tool-card">
+          <h3>Next safe action</h3>
+          <p>{context.nextAction}</p>
+          <div className="decision-panel-actions role-tool-actions">
+            {!currentUser && (
+              <button type="button" className="btn-secondary" onClick={onSignIn}>
+                <LogIn size={16} />
+                Choose profile
+              </button>
+            )}
+            <button type="button" className="btn-secondary" onClick={onOpenQueue}>
+              Open queue
+            </button>
+            <button type="button" className="btn-primary" onClick={onOpenDecisionSupport}>
+              <ClipboardList size={16} />
+              Decision support
+            </button>
+          </div>
+        </article>
+      </section>
+
+      <section className="role-tools-note">
+        <ShieldCheck size={17} />
+        <span>{context.guardrail}</span>
+      </section>
     </div>
   );
 }
@@ -1038,6 +1135,7 @@ function decisionRoleContext(profile: StaffMember | null) {
     emptyRecommendation: "Review the fields, then generate a recommendation.",
     finalPrompt: "Advisory only. Staff must apply policy and professional judgement.",
     actionPlaceholder: "e.g. Escalated to duty manager",
+    errorRecovery: "We could not complete that step. Your text has been kept; try again or complete the fields manually.",
   };
 
   if (role.includes("adult social care") || role.includes("financial assessment")) {
@@ -1088,6 +1186,90 @@ function decisionRoleContext(profile: StaffMember | null) {
       reviewPrompt: "Check which partner owns the case and what county input is needed.",
       emptyRecommendation: "Review partnership details, then generate a recommendation.",
       actionPlaceholder: "e.g. Shared with district partner and logged county follow-up",
+    };
+  }
+  return base;
+}
+
+function roleToolContext(profile: StaffMember | null) {
+  const role = `${profile?.role ?? ""} ${profile?.service_area ?? ""}`.toLowerCase();
+  const base = {
+    title: profile ? `${profile.role} work tools` : "Choose a staff profile",
+    summary: profile?.decision_focus ?? "Select a profile so the dashboard can show the right work context, examples and recovery actions.",
+    errorTitle: "The external tool did not open",
+    errorBody: "This usually means a terminal-only command was started in a non-interactive pane. Your dashboard data is still available here.",
+    tasks: [
+      "Check the resident or partner update is in the right service area.",
+      "Capture missing details before asking for a recommendation.",
+      "Use the model as support only; staff make the final decision.",
+    ],
+    evidence: ["Service area", "Contact channel", "Location or district", "Urgency summary", "Previous contact or repeat issue"],
+    nextAction: "Open the queue or Decision support page and continue the work in the dashboard.",
+    guardrail: "Do not delay urgent safeguarding, safety or statutory action while waiting for a tool to recover.",
+  };
+
+  if (role.includes("adult social care") || role.includes("financial assessment")) {
+    return {
+      ...base,
+      title: profile ? `${profile.role} tools` : base.title,
+      summary: "Supports adult care triage, safeguarding review, care urgency and financial-assessment routing.",
+      tasks: ["Review referrals, care updates and provider concerns.", "Check safeguarding, vulnerability, access and carer context.", "Route urgent cases to duty or assessment teams without waiting for automation."],
+      evidence: ["Immediate risk or safeguarding wording", "Care package or missed-visit detail", "Carer stress or accessibility need", "Previous contact", "Assessment or finance deadline"],
+      nextAction: "If there is immediate risk, follow the adult social care duty process first, then record the dashboard decision.",
+    };
+  }
+  if (role.includes("send")) {
+    return {
+      ...base,
+      summary: "Supports SEND casework around EHCP stages, annual reviews, school/family updates and statutory deadlines.",
+      tasks: ["Check EHCP stage, annual review and statutory deadline pressure.", "Record school, family, social care or health updates clearly.", "Escalate placement, provision or deadline risks to the right SEND lead."],
+      evidence: ["EHCP stage", "Deadline due or overdue", "School/setting response", "Parent or carer contact", "Placement or provision risk"],
+      nextAction: "Open Decision support only after capturing the SEND stage and statutory deadline context.",
+    };
+  }
+  if (role.includes("children") || role.includes("family")) {
+    return {
+      ...base,
+      summary: "Supports Children and Families Hub intake: receiving concerns, recording safe information and routing to the right support.",
+      tasks: ["Review public, professional or family referrals.", "Capture concern wording, consent where relevant, and known family context.", "Route to advice, early help or statutory pathway using local process."],
+      evidence: ["Referrer type", "Concern or safeguarding wording", "Child/family context", "Previous contact", "Requested outcome"],
+      nextAction: "If safeguarding risk is clear, follow the Children and Families Hub process before using model support.",
+    };
+  }
+  if (role.includes("highways")) {
+    return {
+      ...base,
+      summary: "Supports Essex Highways-style enquiry and inspection work for roads, pavements, drainage and street lighting.",
+      tasks: ["Check defect location, route type and public-safety impact.", "Review duplicate reports, photos and inspection notes.", "Route urgent safety issues to inspection rather than waiting for model output."],
+      evidence: ["Exact location", "Road/pavement/drainage/street-light issue", "Photo or inspection note", "Traffic or school-route context", "Repeat reports"],
+      nextAction: "Open Decision support after confirming location and safety context.",
+    };
+  }
+  if (role.includes("waste")) {
+    return {
+      ...base,
+      summary: "Supports ECC waste disposal and recycling-centre operations rather than district kerbside collection ownership.",
+      tasks: ["Review recycling-centre, disposal, contamination or site-operation reports.", "Separate ECC-owned disposal work from district collection issues.", "Route district-owned bin collection issues to the correct partner."],
+      evidence: ["Site or facility", "Operational impact", "Contamination or disposal issue", "Access or safety concern", "Partner owner if district-led"],
+      nextAction: "If the issue is kerbside collection, record partner routing rather than treating it as an ECC-owned decision.",
+    };
+  }
+  if (role.includes("complaints")) {
+    return {
+      ...base,
+      summary: "Supports complaint handling across directorates, statutory response dates and Ombudsman-risk tracking.",
+      tasks: ["Identify complaint stage and owning directorate.", "Track statutory or agreed response date.", "Record remedy, learning and escalation risk."],
+      evidence: ["Complaint stage", "Directorate owner", "Response deadline", "Resident impact", "Ombudsman or repeat-theme risk"],
+      nextAction: "Open Decision support after confirming stage, owner and response deadline.",
+    };
+  }
+  if (role.includes("partnership")) {
+    return {
+      ...base,
+      summary: "Supports district, borough and partner coordination where housing, revenues or local services need county input.",
+      tasks: ["Confirm the partner organisation that owns the service.", "Record what county input is being requested.", "Signpost or coordinate without taking ownership of district decisions."],
+      evidence: ["Partner owner", "Requested county action", "Resident impact", "Deadline", "District housing/revenues context"],
+      nextAction: "Record the partner dependency and use Decision support only for the county follow-up decision.",
     };
   }
   return base;

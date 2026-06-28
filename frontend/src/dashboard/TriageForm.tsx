@@ -51,11 +51,13 @@ export function TriageForm({
   const [activeTab, setActiveTab] = useState<CaseDetailTab>("overview");
 
   if (!caseRecord) {
+    const empty = emptyCaseContext(currentUser);
     return (
       <section className="panel case-review-empty">
         <ClipboardList size={28} />
-        <strong>Select a case from today's priority list.</strong>
-        <p>The case will open with its details, evidence, notes, and recent activity.</p>
+        <strong>{empty.title}</strong>
+        <p>{empty.body}</p>
+        <small>{empty.hint}</small>
       </section>
     );
   }
@@ -162,6 +164,64 @@ export function TriageForm({
       {activeEvidence && <EvidencePreview caseId={caseRecord.case_id} item={activeEvidence} onClose={() => setActiveEvidence(null)} />}
     </div>
   );
+}
+
+function emptyCaseContext(currentUser?: StaffMember | null) {
+  const role = `${currentUser?.role ?? ""} ${currentUser?.service_area ?? ""}`.toLowerCase();
+  if (role.includes("adult social care") || role.includes("financial assessment")) {
+    return {
+      title: "Select an adult care referral",
+      body: "Open a queue item before reviewing safeguarding, care urgency or financial-assessment context.",
+      hint: "Useful details: risk wording, care package, accessibility need, previous contact and assessment deadline.",
+    };
+  }
+  if (role.includes("send")) {
+    return {
+      title: "Select a SEND case",
+      body: "Open a case portal item before checking EHCP stage, school updates or statutory deadline risk.",
+      hint: "Useful details: annual review, placement/provision issue, family contact and deadline.",
+    };
+  }
+  if (role.includes("children") || role.includes("family")) {
+    return {
+      title: "Select a Children and Families referral",
+      body: "Open an intake item before reviewing concern wording, family context and routing.",
+      hint: "Useful details: referrer, safeguarding wording, consent where relevant and requested outcome.",
+    };
+  }
+  if (role.includes("highways")) {
+    return {
+      title: "Select a highways report",
+      body: "Open a road, pavement, drainage or street-lighting case before checking safety priority.",
+      hint: "Useful details: location, photos, route type, repeat reports and public-safety impact.",
+    };
+  }
+  if (role.includes("waste")) {
+    return {
+      title: "Select a recycling or waste disposal report",
+      body: "Open an ECC-owned recycling-centre or disposal issue before checking operational impact.",
+      hint: "Kerbside bin collection is normally a district/city/borough service and should be routed as partner work.",
+    };
+  }
+  if (role.includes("complaints")) {
+    return {
+      title: "Select a complaint case",
+      body: "Open a feedback item before checking complaint stage, owner and response deadline.",
+      hint: "Useful details: directorate, deadline, remedy sought and Ombudsman risk.",
+    };
+  }
+  if (role.includes("partnership")) {
+    return {
+      title: "Select a partner referral",
+      body: "Open a district, borough or local partner item before deciding county follow-up.",
+      hint: "Useful details: partner owner, requested county action, resident impact and deadline.",
+    };
+  }
+  return {
+    title: "Select a case from today's priority list.",
+    body: "The case will open with its details, evidence, notes, and recent activity.",
+    hint: "Choose a staff profile to tailor this page to the job role.",
+  };
 }
 
 function CaseDetailTabs({
